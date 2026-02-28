@@ -75,14 +75,7 @@ func FormatSeparator(s *State, width int) string {
 
 // FormatPetLine returns the single pet status line.
 func FormatPetLine(s *State) string {
-	parts := []string{
-		RenderEmoji(s) + " " + s.Mood.String(),
-		fmt.Sprintf("snacks: %d", s.Snacks),
-	}
-	if s.LastSnack != "" {
-		parts = append(parts, fmt.Sprintf("last: %s", s.LastSnack))
-	}
-	return strings.Join(parts, " | ")
+	return fmt.Sprintf("%s %s | snacks: %d", RenderEmoji(s), s.Mood.String(), s.Snacks)
 }
 
 // FormatFallbackStatus returns a basic status line from Claude's JSON

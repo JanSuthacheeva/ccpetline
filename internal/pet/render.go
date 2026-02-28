@@ -58,17 +58,15 @@ func RenderEmoji(s *State) string {
 	}
 }
 
-// FormatSeparator returns a separator line with the pet emoji positioned by snack count.
+// FormatSeparator returns a separator line with the pet emoji positioned by context %.
 func FormatSeparator(s *State, width int) string {
 	emoji := SizeEmoji(s.Size)
-	// Bounce position based on snack count — pet waddles as you work
-	cycle := 2 * (width - 1)
-	if cycle <= 0 {
-		cycle = 1
+	pos := int(s.ContextPct / 100 * float64(width-1))
+	if pos < 0 {
+		pos = 0
 	}
-	pos := s.Snacks % cycle
-	if pos >= width {
-		pos = cycle - pos
+	if pos > width-1 {
+		pos = width - 1
 	}
 	left := strings.Repeat("\u2500", pos)
 	right := strings.Repeat("\u2500", width-1-pos)

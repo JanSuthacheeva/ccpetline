@@ -13,27 +13,21 @@ const DefaultStatePath = "/tmp/claude-pet-state.json"
 type Mood int
 
 const (
-	MoodHappy Mood = iota
-	MoodEating
-	MoodIdle
+	MoodEating   Mood = iota
 	MoodBored
 	MoodSleeping
 )
 
 func (m Mood) String() string {
 	switch m {
-	case MoodHappy:
-		return "happy"
 	case MoodEating:
 		return "eating"
-	case MoodIdle:
-		return "idle"
 	case MoodBored:
 		return "bored"
 	case MoodSleeping:
 		return "sleeping"
 	default:
-		return "unknown"
+		return "bored"
 	}
 }
 
@@ -112,9 +106,9 @@ func (s *State) SetContext(pct float64) {
 	s.Size = SizeFromContext(pct)
 }
 
-// Wake transitions from sleeping to happy.
+// Wake transitions from sleeping to bored.
 func (s *State) Wake() {
-	s.Mood = MoodHappy
+	s.Mood = MoodBored
 	s.LastEvent = time.Now()
 }
 
@@ -132,14 +126,10 @@ func (s *State) ComputeMood() {
 	}
 	elapsed := time.Since(s.LastEvent)
 	switch {
-	case s.Mood == MoodEating && elapsed > 2*time.Second:
-		s.Mood = MoodHappy
-		fallthrough
-	case s.Mood == MoodHappy && elapsed > 10*time.Second:
-		s.Mood = MoodIdle
-		fallthrough
-	case s.Mood == MoodIdle && elapsed > 30*time.Second:
+	case s.Mood == MoodEating && elapsed > 3*time.Second:
 		s.Mood = MoodBored
+	case elapsed > 60*time.Second:
+		s.Mood = MoodSleeping
 	}
 }
 

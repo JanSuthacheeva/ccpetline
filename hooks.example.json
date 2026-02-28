@@ -37,7 +37,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "claude-pet-statusline npx -y ccstatusline@latest",
+    "command": "claude-pet-statusline",
     "padding": 0
   }
 }

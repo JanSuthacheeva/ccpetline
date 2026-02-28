@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/jan/claude-pet/internal/pet"
-	"github.com/jan/claude-pet/internal/protocol"
 )
 
 // hookInput is the JSON structure Claude Code sends on stdin to hooks.
@@ -26,27 +25,25 @@ func main() {
 		os.Exit(0)
 	}
 
-	var evt protocol.Event
+	state := pet.LoadState(pet.DefaultStatePath)
 
 	switch h.HookEventName {
 	case "PostToolUse":
-		evt = protocol.Event{
-			Type:     protocol.EventSnack,
-			ToolName: h.ToolName,
-		}
+		state.Feed(h.ToolName)
 	case "SessionStart":
-		evt = protocol.Event{Type: protocol.EventWake}
+		state.Wake()
 	case "SessionEnd":
-		evt = protocol.Event{Type: protocol.EventSleep}
+		state.Sleep()
 	default:
 		os.Exit(0)
 	}
 
-	// Best-effort: if pet isn't running, just exit.
-	_ = protocol.SendToSocket(evt)
+	if err := pet.SaveState(pet.DefaultStatePath, state); err != nil {
+		os.Exit(1)
+	}
 
 	// Print snack flavor for fun (visible in hook logs)
-	if evt.Type == protocol.EventSnack {
+	if h.HookEventName == "PostToolUse" {
 		os.Stdout.WriteString(pet.SnackFlavor(h.ToolName) + "\n")
 	}
 }

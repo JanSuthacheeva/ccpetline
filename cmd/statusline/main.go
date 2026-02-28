@@ -1,21 +1,14 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
-	"os/exec"
+	"strings"
 
-	"github.com/jan/claude-pet/internal/protocol"
+	"github.com/jan/claude-pet/internal/pet"
 )
-
-// statuslineInput matches Claude Code's statusline JSON (subset).
-type statuslineInput struct {
-	ContextWindow struct {
-		UsedPercentage float64 `json:"used_percentage"`
-	} `json:"context_window"`
-}
 
 func main() {
 	data, err := io.ReadAll(os.Stdin)
@@ -23,24 +16,27 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Extract context % and send to pet
-	var sl statuslineInput
-	if err := json.Unmarshal(data, &sl); err == nil && sl.ContextWindow.UsedPercentage > 0 {
-		_ = protocol.SendToSocket(protocol.Event{
-			Type:       protocol.EventContextUpdate,
-			ContextPct: sl.ContextWindow.UsedPercentage,
-		})
+	var claudeJSON map[string]any
+	if err := json.Unmarshal(data, &claudeJSON); err != nil {
+		os.Exit(1)
 	}
 
-	// If a wrapped command was given as args, pipe stdin to it
-	if len(os.Args) > 1 {
-		cmd := exec.Command(os.Args[1], os.Args[2:]...)
-		cmd.Stdin = bytes.NewReader(data)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			os.Exit(1)
+	// Load pet state and update context from Claude's JSON
+	state := pet.LoadState(pet.DefaultStatePath)
+
+	if cw, ok := claudeJSON["context_window"].(map[string]any); ok {
+		if pct, ok := cw["used_percentage"].(float64); ok && pct > 0 {
+			state.SetContext(pct)
 		}
 	}
-}
 
+	state.ComputeMood()
+
+	lines := pet.FormatStatusLine(state, claudeJSON)
+	for _, line := range lines {
+		// Replace spaces with non-breaking spaces to prevent trimming
+		line = strings.ReplaceAll(line, " ", "\u00A0")
+		// Prefix with ANSI reset to undo dim styling
+		fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", line)
+	}
+}

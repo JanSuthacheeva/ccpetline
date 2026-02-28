@@ -5,334 +5,126 @@ import (
 	"strings"
 )
 
-// Render returns the full frame as a string to print.
-func Render(s *State, width int) string {
-	var b strings.Builder
-
-	art := getArt(s.Size, s.Mood, s.Frame)
-	status := statusLine(s)
-
-	// Pad left for wandering position
-	pad := strings.Repeat(" ", s.PosX)
-
-	for _, line := range art {
-		b.WriteString(pad)
-		b.WriteString(line)
-		b.WriteString("\n")
+// SnackEmoji returns an emoji for the tool that was just eaten.
+func SnackEmoji(toolName string) string {
+	switch toolName {
+	case "Bash":
+		return "\U0001F32E" // taco
+	case "Read":
+		return "\U0001F957" // salad
+	case "Edit", "Write":
+		return "\U0001F36A" // cookie
+	case "Grep", "Glob":
+		return "\U0001F37F" // popcorn
+	case "Agent":
+		return "\U0001F355" // pizza
+	case "WebFetch", "WebSearch":
+		return "\U0001F363" // sushi
+	default:
+		return "\U0001F36C" // candy
 	}
-
-	b.WriteString("\n")
-	b.WriteString(status)
-	b.WriteString("\n")
-
-	// Context bar
-	if s.ContextPct > 0 {
-		b.WriteString(contextBar(s.ContextPct, width))
-		b.WriteString("\n")
-	}
-
-	return b.String()
 }
 
-func statusLine(s *State) string {
-	parts := []string{
-		fmt.Sprintf("mood: %s", s.Mood),
-		fmt.Sprintf("size: %s", s.Size),
-		fmt.Sprintf("snacks: %d", s.Snacks),
+// SizeEmoji returns the pet emoji based on size.
+func SizeEmoji(size Size) string {
+	switch size {
+	case SizeTiny:
+		return "\U0001F423" // hatching chick
+	case SizeNormal:
+		return "\U0001FABF" // goose
+	case SizeChonky:
+		return "\U0001FABF\U0001FABF" // double goose
+	case SizeMegaChonk:
+		return "\U0001F986" // duck
+	case SizeAbsoluteUnit:
+		return "\U0001F9A2" // swan
+	default:
+		return "\U0001FABF"
 	}
-	if s.ContextPct > 0 {
-		parts = append(parts, fmt.Sprintf("ctx: %.0f%%", s.ContextPct))
+}
+
+// RenderEmoji returns the pet emoji string based on mood and size.
+func RenderEmoji(s *State) string {
+	base := SizeEmoji(s.Size)
+	switch s.Mood {
+	case MoodEating:
+		return base + SnackEmoji(s.LastTool)
+	case MoodBored:
+		return base + "\U0001F4AD" // thought bubble
+	case MoodSleeping:
+		return base + "\U0001F4A4" // zzz
+	default:
+		return base
+	}
+}
+
+// FormatStatusLine returns 1-2 lines combining pet info + Claude status info.
+func FormatStatusLine(s *State, claudeJSON map[string]any) []string {
+	// Line 1: pet status
+	parts := []string{
+		RenderEmoji(s) + " " + s.Mood.String(),
+		fmt.Sprintf("snacks: %d", s.Snacks),
 	}
 	if s.LastSnack != "" {
 		parts = append(parts, fmt.Sprintf("last: %s", s.LastSnack))
 	}
-	return strings.Join(parts, " | ")
+	line1 := strings.Join(parts, " | ")
+
+	// Line 2: Claude status info (model, cost, context, lines changed)
+	var info []string
+
+	if model, ok := extractModel(claudeJSON); ok {
+		info = append(info, model)
+	}
+if ctx, ok := extractContext(claudeJSON); ok {
+		info = append(info, ctx)
+	}
+	if lines, ok := extractLines(claudeJSON); ok {
+		info = append(info, lines)
+	}
+
+	if len(info) == 0 {
+		return []string{line1}
+	}
+	line2 := strings.Join(info, " | ")
+	return []string{line1, line2}
 }
 
-func contextBar(pct float64, width int) string {
-	if width < 10 {
-		width = 40
+func extractModel(j map[string]any) (string, bool) {
+	model, ok := j["model"].(map[string]any)
+	if !ok {
+		return "", false
 	}
-	barWidth := width - 8
-	if barWidth < 10 {
-		barWidth = 10
+	if name, ok := model["display_name"].(string); ok && name != "" {
+		return name, true
 	}
-	filled := int(pct / 100 * float64(barWidth))
-	if filled > barWidth {
-		filled = barWidth
+	if id, ok := model["id"].(string); ok && id != "" {
+		return id, true
 	}
-	empty := barWidth - filled
-	return fmt.Sprintf("[%s%s] %3.0f%%",
-		strings.Repeat("#", filled),
-		strings.Repeat(".", empty),
-		pct)
+	return "", false
 }
 
-func getArt(size Size, mood Mood, frame int) []string {
-	if mood == MoodSleeping {
-		return sleepingGoose(size, frame)
+func extractContext(j map[string]any) (string, bool) {
+	cw, ok := j["context_window"].(map[string]any)
+	if !ok {
+		return "", false
 	}
-	if mood == MoodEating {
-		return eatingGoose(size, frame)
+	pct, ok := cw["used_percentage"].(float64)
+	if !ok || pct == 0 {
+		return "", false
 	}
-	return normalGoose(size, mood, frame)
+	return fmt.Sprintf("ctx: %.0f%%", pct), true
 }
 
-// --- Tiny goose ---
-//
-//    ,_
-//   (o>
-//   //\
-//   V_/_
-//
-
-// --- Normal goose ---
-//
-//     ,___
-//    (o  >
-//    |\ \
-//    | \_)
-//    V  V
-//
-
-// --- Chonky goose ---
-//
-//      ,____
-//     (o   >
-//     /|   |
-//    / |   |
-//    |  \_ )
-//    VV  VV
-//
-
-// --- Mega chonk goose ---
-//
-//       ,_____
-//      (o    >
-//      /|    |
-//     / |    |
-//    /  |    |
-//    |   \__ )
-//    VV   VV
-//
-
-// --- Absolute unit goose ---
-//
-//        ,______
-//       (o     >
-//       /|     |
-//      / |     |
-//     /  |     |
-//    /   |     |
-//    |    \___ )
-//    VV    VV
-//
-
-func normalGoose(size Size, mood Mood, frame int) []string {
-	eye := "o"
-	if mood == MoodBored {
-		if frame%6 < 3 {
-			eye = "-"
-		}
+func extractLines(j map[string]any) (string, bool) {
+	lines, ok := j["lines_changed"].(map[string]any)
+	if !ok {
+		return "", false
 	}
-	if mood == MoodIdle {
-		eye = "."
+	added, _ := lines["added"].(float64)
+	removed, _ := lines["removed"].(float64)
+	if added == 0 && removed == 0 {
+		return "", false
 	}
-
-	beak := ">"
-	if mood == MoodHappy && frame%4 < 2 {
-		beak = ")"
-	}
-	if mood == MoodBored {
-		beak = ">"
-	}
-
-	// Foot animation for wandering
-	feet := func(l, r string) string {
-		if (mood == MoodBored || mood == MoodIdle) && frame%4 < 2 {
-			return r + "  " + l // swap feet
-		}
-		return l + "  " + r
-	}
-
-	switch size {
-	case SizeTiny:
-		return []string{
-			"  ,_",
-			fmt.Sprintf(" (%s%s", eye, beak),
-			" //\\",
-			fmt.Sprintf(" %s", feet("V", "V")),
-		}
-	case SizeNormal:
-		return []string{
-			"   ,___",
-			fmt.Sprintf("  (%s  %s", eye, beak),
-			"  |\\ \\",
-			"  | \\_)",
-			fmt.Sprintf("  %s", feet("V", "V")),
-		}
-	case SizeChonky:
-		return []string{
-			"    ,____",
-			fmt.Sprintf("   (%s   %s", eye, beak),
-			"   /|   |",
-			"  / |   |",
-			"  |  \\_ )",
-			fmt.Sprintf("  %s", feet("VV", "VV")),
-		}
-	case SizeMegaChonk:
-		sweat := " "
-		if frame%4 < 2 {
-			sweat = "'"
-		}
-		return []string{
-			fmt.Sprintf("     ,_____%s", sweat),
-			fmt.Sprintf("    (%s    %s", eye, beak),
-			"    /|    |",
-			"   / |    |",
-			"  /  |    |",
-			"  |   \\__ )",
-			fmt.Sprintf("  %s", feet("VV", " VV")),
-		}
-	case SizeAbsoluteUnit:
-		sweat := "  "
-		if frame%3 == 0 {
-			sweat = "' "
-		} else if frame%3 == 1 {
-			sweat = "' '"
-		}
-		return []string{
-			fmt.Sprintf("      ,______%s", sweat),
-			fmt.Sprintf("     (%s     %s", eye, beak),
-			"     /|      |",
-			"    / |      |",
-			"   /  |      |",
-			"  /   |      |",
-			"  |    \\___ )",
-			fmt.Sprintf("  %s", feet("VV", "  VV")),
-		}
-	}
-	return []string{"?"}
-}
-
-func eatingGoose(size Size, frame int) []string {
-	// Chomp animation
-	beak := ">"
-	snack := "*"
-	if frame%2 == 0 {
-		beak = ")"
-		snack = "~"
-	}
-
-	switch size {
-	case SizeTiny:
-		return []string{
-			"  ,_",
-			fmt.Sprintf(" (^%s%s", beak, snack),
-			" //\\",
-			" V  V",
-		}
-	case SizeNormal:
-		return []string{
-			"   ,___",
-			fmt.Sprintf("  (^  %s%s", beak, snack),
-			"  |\\ \\",
-			"  | \\_)",
-			"  V  V",
-		}
-	case SizeChonky:
-		return []string{
-			"    ,____",
-			fmt.Sprintf("   (^   %s%s", beak, snack),
-			"   /|   |",
-			"  / |   |",
-			"  |  \\_ )",
-			"  VV  VV",
-		}
-	case SizeMegaChonk:
-		return []string{
-			"     ,_____",
-			fmt.Sprintf("    (^    %s%s", beak, snack),
-			"    /|    |",
-			"   / |    |",
-			"  /  |    |",
-			"  |   \\__ )",
-			"  VV   VV",
-		}
-	case SizeAbsoluteUnit:
-		return []string{
-			"      ,______",
-			fmt.Sprintf("     (^     %s%s", beak, snack),
-			"     /|      |",
-			"    / |      |",
-			"   /  |      |",
-			"  /   |      |",
-			"  |    \\___ )",
-			"  VV    VV",
-		}
-	}
-	return []string{"?"}
-}
-
-func sleepingGoose(size Size, frame int) []string {
-	zzz := ""
-	switch frame % 4 {
-	case 0:
-		zzz = " z"
-	case 1:
-		zzz = " zz"
-	case 2:
-		zzz = " zzZ"
-	case 3:
-		zzz = " zzZZ"
-	}
-
-	switch size {
-	case SizeTiny:
-		return []string{
-			"  ,_",
-			fmt.Sprintf(" (- %s", zzz),
-			" //\\",
-			" V  V",
-		}
-	case SizeNormal:
-		return []string{
-			"   ,___",
-			fmt.Sprintf("  (-  =%s", zzz),
-			"  |\\ \\",
-			"  | \\_)",
-			"  V  V",
-		}
-	case SizeChonky:
-		return []string{
-			"    ,____",
-			fmt.Sprintf("   (-   =%s", zzz),
-			"   /|   |",
-			"  / |   |",
-			"  |  \\_ )",
-			"  VV  VV",
-		}
-	case SizeMegaChonk:
-		return []string{
-			"     ,_____",
-			fmt.Sprintf("    (-    =%s", zzz),
-			"    /|    |",
-			"   / |    |",
-			"  /  |    |",
-			"  |   \\__ )",
-			"  VV   VV",
-		}
-	case SizeAbsoluteUnit:
-		return []string{
-			"      ,______",
-			fmt.Sprintf("     (-     =%s", zzz),
-			"     /|      |",
-			"    / |      |",
-			"   /  |      |",
-			"  /   |      |",
-			"  |    \\___ )",
-			"  VV    VV",
-		}
-	}
-	return []string{"?"}
+	return fmt.Sprintf("+%.0f/-%.0f lines", added, removed), true
 }

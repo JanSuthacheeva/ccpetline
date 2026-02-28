@@ -1,9 +1,14 @@
 package pet
 
 import (
-	"math/rand/v2"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 )
+
+const DefaultStatePath = "/tmp/claude-pet-state.json"
 
 type Mood int
 
@@ -75,15 +80,13 @@ func SizeFromContext(pct float64) Size {
 }
 
 type State struct {
-	Mood       Mood
-	Size       Size
-	ContextPct float64
-	Snacks     int
-	LastSnack  string
-	PosX       int
-	Frame      int
-	LastEvent  time.Time
-	MaxX       int // render width for wandering
+	Mood       Mood      `json:"mood"`
+	Size       Size      `json:"size"`
+	ContextPct float64   `json:"context_pct"`
+	Snacks     int       `json:"snacks"`
+	LastSnack  string    `json:"last_snack"`
+	LastTool   string    `json:"last_tool"`
+	LastEvent  time.Time `json:"last_event"`
 }
 
 func NewState() *State {
@@ -91,7 +94,6 @@ func NewState() *State {
 		Mood:      MoodSleeping,
 		Size:      SizeTiny,
 		LastEvent: time.Now(),
-		MaxX:      60,
 	}
 }
 
@@ -99,6 +101,7 @@ func NewState() *State {
 func (s *State) Feed(toolName string) {
 	s.Snacks++
 	s.LastSnack = SnackFlavor(toolName)
+	s.LastTool = toolName
 	s.Mood = MoodEating
 	s.LastEvent = time.Now()
 }
@@ -107,7 +110,6 @@ func (s *State) Feed(toolName string) {
 func (s *State) SetContext(pct float64) {
 	s.ContextPct = pct
 	s.Size = SizeFromContext(pct)
-	s.LastEvent = time.Now()
 }
 
 // Wake transitions from sleeping to happy.
@@ -122,43 +124,56 @@ func (s *State) Sleep() {
 	s.LastEvent = time.Now()
 }
 
-// Tick advances the animation state. Called every 500ms.
-func (s *State) Tick() {
-	s.Frame++
-	elapsed := time.Since(s.LastEvent)
-
+// ComputeMood derives the current mood from the LastEvent timestamp.
+// This replaces the old Tick() loop — mood is computed on-read.
+func (s *State) ComputeMood() {
 	if s.Mood == MoodSleeping {
 		return
 	}
-
-	// Eating lasts ~2 seconds (4 ticks)
-	if s.Mood == MoodEating && elapsed > 2*time.Second {
+	elapsed := time.Since(s.LastEvent)
+	switch {
+	case s.Mood == MoodEating && elapsed > 2*time.Second:
 		s.Mood = MoodHappy
-	}
-
-	// Idle after 10s
-	if s.Mood == MoodHappy && elapsed > 10*time.Second {
+		fallthrough
+	case s.Mood == MoodHappy && elapsed > 10*time.Second:
 		s.Mood = MoodIdle
-	}
-
-	// Bored after 30s
-	if s.Mood == MoodIdle && elapsed > 30*time.Second {
+		fallthrough
+	case s.Mood == MoodIdle && elapsed > 30*time.Second:
 		s.Mood = MoodBored
 	}
+}
 
-	// Wander when bored
-	if s.Mood == MoodBored || s.Mood == MoodIdle {
-		if s.Frame%4 == 0 {
-			dir := rand.IntN(3) - 1 // -1, 0, or 1
-			s.PosX += dir
-			if s.PosX < 0 {
-				s.PosX = 0
-			}
-			if s.PosX > s.MaxX {
-				s.PosX = s.MaxX
-			}
-		}
+// LoadState reads pet state from a JSON file. Returns a new state if the file doesn't exist.
+func LoadState(path string) *State {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return NewState()
 	}
+	var s State
+	if err := json.Unmarshal(data, &s); err != nil {
+		return NewState()
+	}
+	return &s
+}
+
+// SaveState writes pet state to a JSON file atomically (temp + rename).
+func SaveState(path string, s *State) error {
+	data, err := json.Marshal(s)
+	if err != nil {
+		return fmt.Errorf("marshal state: %w", err)
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
+		return fmt.Errorf("write temp: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		// Clean up temp file on rename failure
+		os.Remove(tmp)
+		return fmt.Errorf("rename: %w", err)
+	}
+	// Ensure parent dir exists (for first write)
+	_ = os.MkdirAll(filepath.Dir(path), 0755)
+	return nil
 }
 
 // SnackFlavor maps a tool name to a fun snack name.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -27,10 +28,18 @@ func main() {
 	fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", petLine)
 	fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", strings.Repeat("\u2500", 40))
 
-	// Remaining lines: delegate to ccstatusline
+	// Remaining lines: delegate to ccstatusline, fall back to built-in
 	cmd := exec.Command("npx", "-y", "ccstatusline@latest")
 	cmd.Stdin = bytes.NewReader(data)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	_ = cmd.Run()
+	if err := cmd.Run(); err != nil {
+		var claudeJSON map[string]any
+		if json.Unmarshal(data, &claudeJSON) == nil {
+			if line := pet.FormatFallbackStatus(claudeJSON); line != "" {
+				line = strings.ReplaceAll(line, " ", "\u00A0")
+				fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", line)
+			}
+		}
+	}
 }

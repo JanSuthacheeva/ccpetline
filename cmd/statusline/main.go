@@ -23,12 +23,13 @@ func main() {
 	var claudeJSON map[string]any
 	if json.Unmarshal(data, &claudeJSON) == nil {
 		if cw, ok := claudeJSON["context_window"].(map[string]any); ok {
-			if pct, ok := cw["used_percentage"].(float64); ok && pct > 0 {
+			if pct, ok := cw["used_percentage"].(float64); ok {
 				state.SetContext(pct)
 			}
 		}
 	}
 	state.ComputeMood()
+	_ = pet.SaveState(pet.DefaultStatePath, state)
 
 	// Line 1: pet status
 	petLine := pet.FormatPetLine(state)

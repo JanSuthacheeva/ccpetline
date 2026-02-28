@@ -31,6 +31,7 @@ func main() {
 	case "PostToolUse":
 		state.Feed(h.ToolName)
 	case "SessionStart":
+		state = pet.NewState()
 		state.Wake()
 	case "SessionEnd":
 		state.Sleep()

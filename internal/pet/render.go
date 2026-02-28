@@ -68,9 +68,14 @@ func FormatSeparator(s *State, width int) string {
 	if pos > width-1 {
 		pos = width - 1
 	}
+	suffix := fmt.Sprintf(" Ctx: %.1f%%", s.ContextPct)
 	left := strings.Repeat("\u2500", pos)
-	right := strings.Repeat("\u2500", width-1-pos)
-	return left + emoji + right
+	rightLen := width - 1 - pos - len(suffix)
+	if rightLen < 0 {
+		rightLen = 0
+	}
+	right := strings.Repeat("\u2500", rightLen)
+	return left + emoji + right + suffix
 }
 
 // FormatPetLine returns the single pet status line.

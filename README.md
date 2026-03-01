@@ -1,6 +1,6 @@
 # ccpetline
 
-A terminal pet that lives alongside your Claude Code sessions. It eats tool calls as "snacks" and grows fatter as your context window fills up.
+A terminal pet that lives alongside your Claude Code sessions. It reacts to tool calls and grows fatter as your context window fills up.
 
 ## Install
 
@@ -68,7 +68,7 @@ Three binaries:
 
 | Signal | Source | Effect |
 |--------|--------|--------|
-| Snack | PostToolUse hook | +1 snack, mood change |
+| Tool use | PostToolUse hook | +1 joy, mood change |
 | Context update | Statusline | Updates fatness (primary size driver) |
 | Wake | SessionStart hook | Pet wakes up |
 | Sleep | SessionEnd hook | Pet goes to sleep |

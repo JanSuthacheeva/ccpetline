@@ -65,9 +65,6 @@ func RenderEmoji(s *State) string {
 // FormatSeparator returns a separator line with the pet emoji positioned by context %.
 func FormatSeparator(s *State, width int) string {
 	emoji := SizeEmoji(s.Species, s.Size)
-	if s.SingleLine {
-		emoji = RenderEmoji(s)
-	}
 
 	displayPct := s.ContextPct
 	label := "Ctx"

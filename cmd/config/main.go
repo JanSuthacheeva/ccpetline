@@ -26,6 +26,7 @@ const (
 	sectionContextMode
 	sectionShowSnacks
 	sectionLayout
+	sectionPosition
 )
 
 type speciesOption struct {
@@ -73,19 +74,23 @@ type model struct {
 	section        section
 	options        []speciesOption
 	ctxOptions     []contextModeOption
-	snackOptions   []boolOption
-	layoutOptions  []boolOption
-	cursor         int
-	ctxCursor      int
-	snackCursor    int
-	layoutCursor   int
-	current        pet.Species
-	currentCtxMode pet.ContextMode
-	currentSnacks  bool
-	currentLayout  bool // true = single line
-	chosenSpecies  pet.Species
-	chosenCtxMode  pet.ContextMode
-	chosenSnacks   bool
+	snackOptions    []boolOption
+	layoutOptions   []boolOption
+	positionOptions []boolOption
+	cursor          int
+	ctxCursor       int
+	snackCursor     int
+	layoutCursor    int
+	positionCursor  int
+	current         pet.Species
+	currentCtxMode  pet.ContextMode
+	currentSnacks   bool
+	currentLayout   bool // true = single line
+	currentPosition bool // true = pet on top
+	chosenSpecies   pet.Species
+	chosenCtxMode   pet.ContextMode
+	chosenSnacks    bool
+	chosenLayout    bool
 	saved          bool
 	quitting       bool
 }
@@ -125,20 +130,32 @@ func initialModel() model {
 	if cfg.SingleLine {
 		layoutCursor = 1
 	}
+	petOnTop := cfg.PetOnTop == nil || *cfg.PetOnTop
+	positionOpts := []boolOption{
+		{value: true, label: "Above", desc: "pet lines above status line"},
+		{value: false, label: "Below", desc: "pet lines below status line"},
+	}
+	positionCursor := 0
+	if !petOnTop {
+		positionCursor = 1
+	}
 	return model{
-		section:        sectionSpecies,
-		options:        opts,
-		ctxOptions:     ctxOpts,
-		snackOptions:   snackOpts,
-		layoutOptions:  layoutOpts,
-		cursor:         cursor,
-		ctxCursor:      ctxCursor,
-		snackCursor:    snackCursor,
-		layoutCursor:   layoutCursor,
-		current:        cfg.Species,
-		currentCtxMode: cfg.ContextMode,
-		currentSnacks:  showSnacks,
-		currentLayout:  cfg.SingleLine,
+		section:         sectionSpecies,
+		options:         opts,
+		ctxOptions:      ctxOpts,
+		snackOptions:    snackOpts,
+		layoutOptions:   layoutOpts,
+		positionOptions: positionOpts,
+		cursor:          cursor,
+		ctxCursor:       ctxCursor,
+		snackCursor:     snackCursor,
+		layoutCursor:    layoutCursor,
+		positionCursor:  positionCursor,
+		current:         cfg.Species,
+		currentCtxMode:  cfg.ContextMode,
+		currentSnacks:   showSnacks,
+		currentLayout:   cfg.SingleLine,
+		currentPosition: petOnTop,
 	}
 }
 
@@ -171,6 +188,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.layoutCursor > 0 {
 					m.layoutCursor--
 				}
+			case sectionPosition:
+				if m.positionCursor > 0 {
+					m.positionCursor--
+				}
 			}
 		case "down", "j":
 			switch m.section {
@@ -190,6 +211,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.layoutCursor < len(m.layoutOptions)-1 {
 					m.layoutCursor++
 				}
+			case sectionPosition:
+				if m.positionCursor < len(m.positionOptions)-1 {
+					m.positionCursor++
+				}
 			}
 		case "enter":
 			switch m.section {
@@ -206,13 +231,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.section = sectionLayout
 				return m, nil
 			case sectionLayout:
-				chosenLayout := m.layoutOptions[m.layoutCursor].value
+				m.chosenLayout = m.layoutOptions[m.layoutCursor].value
+				m.section = sectionPosition
+				return m, nil
+			case sectionPosition:
+				chosenPosition := m.positionOptions[m.positionCursor].value
 				showSnacks := m.chosenSnacks
 				cfg := &pet.Config{
 					Species:     m.chosenSpecies,
 					ContextMode: m.chosenCtxMode,
 					ShowSnacks:  &showSnacks,
-					SingleLine:  chosenLayout,
+					SingleLine:  m.chosenLayout,
+					PetOnTop:    &chosenPosition,
 				}
 				if err := pet.SaveConfig(cfg); err != nil {
 					fmt.Fprintf(os.Stderr, "Error saving config: %v\n", err)
@@ -221,7 +251,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.current = m.chosenSpecies
 				m.currentCtxMode = m.chosenCtxMode
 				m.currentSnacks = showSnacks
-				m.currentLayout = chosenLayout
+				m.currentLayout = m.chosenLayout
+				m.currentPosition = chosenPosition
 				m.saved = true
 				m.quitting = true
 				return m, tea.Quit
@@ -237,8 +268,9 @@ func (m model) View() string {
 		ctxOpt := m.ctxOptions[m.ctxCursor]
 		snackOpt := m.snackOptions[m.snackCursor]
 		layoutOpt := m.layoutOptions[m.layoutCursor]
-		return savedStyle.Render(fmt.Sprintf("Saved! Pet: %s %s | Context: %s | Snacks: %s | Layout: %s",
-			opt.label, opt.preview, ctxOpt.label, snackOpt.label, layoutOpt.label)) + "\n"
+		posOpt := m.positionOptions[m.positionCursor]
+		return savedStyle.Render(fmt.Sprintf("Saved! Pet: %s %s | Context: %s | Snacks: %s | Layout: %s | Position: %s",
+			opt.label, opt.preview, ctxOpt.label, snackOpt.label, layoutOpt.label, posOpt.label)) + "\n"
 	}
 	if m.quitting {
 		return ""
@@ -311,7 +343,7 @@ func (m model) View() string {
 				b.WriteString(fmt.Sprintf("%s%s\n", cursor, dimStyle.Render(detail)))
 			}
 		}
-	} else {
+	} else if m.section == sectionLayout {
 		b.WriteString(titleStyle.Render("Layout"))
 		b.WriteString("\n\n")
 
@@ -328,6 +360,28 @@ func (m model) View() string {
 			detail := fmt.Sprintf("%s — %s", name, opt.desc)
 
 			if i == m.layoutCursor {
+				b.WriteString(fmt.Sprintf("%s%s\n", cursor, selectedStyle.Render(detail)))
+			} else {
+				b.WriteString(fmt.Sprintf("%s%s\n", cursor, dimStyle.Render(detail)))
+			}
+		}
+	} else {
+		b.WriteString(titleStyle.Render("Pet position"))
+		b.WriteString("\n\n")
+
+		for i, opt := range m.positionOptions {
+			cursor := "  "
+			if i == m.positionCursor {
+				cursor = cursorStyle.Render("> ")
+			}
+
+			name := opt.label
+			if opt.value == m.currentPosition {
+				name += " (current)"
+			}
+			detail := fmt.Sprintf("%s — %s", name, opt.desc)
+
+			if i == m.positionCursor {
 				b.WriteString(fmt.Sprintf("%s%s\n", cursor, selectedStyle.Render(detail)))
 			} else {
 				b.WriteString(fmt.Sprintf("%s%s\n", cursor, dimStyle.Render(detail)))

@@ -119,6 +119,7 @@ type State struct {
 	ContextMode ContextMode `json:"context_mode"`
 	ShowSnacks  bool        `json:"show_snacks"`
 	SingleLine  bool        `json:"single_line"`
+	PetOnTop    bool        `json:"pet_on_top"`
 	Mood        Mood        `json:"mood"`
 	Size        Size        `json:"size"`
 	ContextPct  float64     `json:"context_pct"`
@@ -135,6 +136,7 @@ func NewState() *State {
 		ContextMode: cfg.ContextMode,
 		ShowSnacks:  cfg.ShowSnacks != nil && *cfg.ShowSnacks,
 		SingleLine:  cfg.SingleLine,
+		PetOnTop:    cfg.PetOnTop == nil || *cfg.PetOnTop,
 		Mood:        MoodSleeping,
 		Size:        SizeTiny,
 		LastEvent:   time.Now(),

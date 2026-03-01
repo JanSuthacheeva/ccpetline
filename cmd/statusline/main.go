@@ -38,10 +38,16 @@ func main() {
 	state.ComputeMood()
 	_ = pet.SaveState(statePath, state)
 
-	// Pet status lines (1 or 2 depending on layout mode)
-	for _, line := range pet.FormatStatusLines(state, 50) {
-		line = strings.ReplaceAll(line, " ", "\u00A0")
-		fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", line)
+	petLines := pet.FormatStatusLines(state, 50)
+	printPetLines := func() {
+		for _, line := range petLines {
+			line = strings.ReplaceAll(line, " ", "\u00A0")
+			fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", line)
+		}
+	}
+
+	if state.PetOnTop {
+		printPetLines()
 	}
 
 	// Remaining lines: delegate to ccstatusline, fall back to built-in
@@ -54,5 +60,9 @@ func main() {
 			line = strings.ReplaceAll(line, " ", "\u00A0")
 			fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", line)
 		}
+	}
+
+	if !state.PetOnTop {
+		printPetLines()
 	}
 }

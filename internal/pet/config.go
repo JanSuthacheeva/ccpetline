@@ -11,6 +11,7 @@ type Config struct {
 	ContextMode ContextMode `json:"context_mode"`
 	ShowSnacks  *bool       `json:"show_snacks,omitempty"`
 	SingleLine  bool        `json:"single_line,omitempty"`
+	PetOnTop    *bool       `json:"pet_on_top,omitempty"`
 }
 
 func ConfigPath() string {
@@ -23,7 +24,7 @@ func ConfigPath() string {
 
 func defaultConfig() *Config {
 	t := true
-	return &Config{Species: SpeciesGoose, ContextMode: ContextModeCtx, ShowSnacks: &t}
+	return &Config{Species: SpeciesGoose, ContextMode: ContextModeCtx, ShowSnacks: &t, PetOnTop: &t}
 }
 
 func LoadConfig() *Config {
@@ -48,6 +49,10 @@ func LoadConfig() *Config {
 	if c.ShowSnacks == nil {
 		t := true
 		c.ShowSnacks = &t
+	}
+	if c.PetOnTop == nil {
+		t := true
+		c.PetOnTop = &t
 	}
 	return &c
 }
@@ -90,6 +95,7 @@ func updateActiveSessions(c *Config) {
 		state.ContextMode = c.ContextMode
 		state.ShowSnacks = c.ShowSnacks != nil && *c.ShowSnacks
 		state.SingleLine = c.SingleLine
+		state.PetOnTop = c.PetOnTop == nil || *c.PetOnTop
 		_ = SaveState(path, state)
 	}
 }

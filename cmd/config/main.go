@@ -17,9 +17,7 @@ var (
 	selectedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
 	cursorStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
 	dimStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	savedStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("78"))
-	previewStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("249"))
-	boxStyle      = lipgloss.NewStyle().
+	boxStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("240")).
 			Padding(0, 1)
@@ -28,9 +26,11 @@ var (
 type section int
 
 const (
-	sectionSpecies section = iota
-	sectionContextMode
-	sectionLines
+	sectionMenu        section = iota // main menu
+	sectionSpecies                    // pet picker
+	sectionContextMode                // context mode picker
+	sectionLinesPicker                // pick which line (1/2/3)
+	sectionLineEdit                   // segment editor for one line
 )
 
 const maxLines = 3
@@ -70,6 +70,20 @@ func contextModeOptions() []contextModeOption {
 	}
 }
 
+// Menu items
+type menuItem struct {
+	label   string
+	section section
+}
+
+func menuItems() []menuItem {
+	return []menuItem{
+		{label: "Edit Lines", section: sectionLinesPicker},
+		{label: "Select Pet", section: sectionSpecies},
+		{label: "Context Mode", section: sectionContextMode},
+	}
+}
+
 // editMode tracks sub-modes within the segment list editor.
 type editMode int
 
@@ -86,12 +100,10 @@ type model struct {
 	ctxOptions []contextModeOption
 	cursor     int
 	ctxCursor  int
+	menuCursor int
 
 	current        pet.Species
 	currentCtxMode pet.ContextMode
-
-	chosenSpecies pet.Species
-	chosenCtxMode pet.ContextMode
 
 	// Segment editor state
 	lines       [maxLines][]pet.Segment
@@ -100,17 +112,16 @@ type model struct {
 	mode        editMode
 
 	// Picker sub-mode
-	pickerItems  []string
-	pickerCursor int
-	pickerInsert bool // true = insert before cursor, false = append or replace
+	pickerItems   []string
+	pickerCursor  int
+	pickerInsert  bool // true = insert before cursor, false = append or replace
 	pickerReplace bool // true = replacing existing segment
 
 	// Inline text edit
-	editBuf     []rune
-	editCursor  int
+	editBuf    []rune
+	editCursor int
 	editInPlace bool // true = editing existing segment, false = creating new one
 
-	saved    bool
 	quitting bool
 }
 
@@ -152,7 +163,7 @@ func initialModel() model {
 	}
 
 	return model{
-		section:        sectionSpecies,
+		section:        sectionMenu,
 		options:        opts,
 		ctxOptions:     ctxOpts,
 		cursor:         cursor,
@@ -178,23 +189,51 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch m.section {
+		case sectionMenu:
+			return m.updateMenu(msg)
 		case sectionSpecies:
 			return m.updateSpecies(msg)
 		case sectionContextMode:
 			return m.updateContextMode(msg)
-		case sectionLines:
-			return m.updateLines(msg)
+		case sectionLinesPicker:
+			return m.updateLinesPicker(msg)
+		case sectionLineEdit:
+			return m.updateLineEdit(msg)
 		}
 	}
 
 	return m, nil
 }
 
-func (m model) updateSpecies(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	items := menuItems()
 	switch msg.String() {
 	case "q", "esc":
 		m.quitting = true
 		return m, tea.Quit
+	case "up", "k":
+		if m.menuCursor > 0 {
+			m.menuCursor--
+		}
+	case "down", "j":
+		if m.menuCursor < len(items) {
+			m.menuCursor++
+		}
+	case "enter":
+		if m.menuCursor == len(items) {
+			// Exit
+			m.quitting = true
+			return m, tea.Quit
+		}
+		m.section = items[m.menuCursor].section
+	}
+	return m, nil
+}
+
+func (m model) updateSpecies(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.section = sectionMenu
 	case "up", "k":
 		if m.cursor > 0 {
 			m.cursor--
@@ -204,17 +243,17 @@ func (m model) updateSpecies(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor++
 		}
 	case "enter":
-		m.chosenSpecies = m.options[m.cursor].species
-		m.section = sectionContextMode
+		m.current = m.options[m.cursor].species
+		m.save()
+		m.section = sectionMenu
 	}
 	return m, nil
 }
 
 func (m model) updateContextMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "q", "esc":
-		m.quitting = true
-		return m, tea.Quit
+	case "esc":
+		m.section = sectionMenu
 	case "up", "k":
 		if m.ctxCursor > 0 {
 			m.ctxCursor--
@@ -224,13 +263,34 @@ func (m model) updateContextMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.ctxCursor++
 		}
 	case "enter":
-		m.chosenCtxMode = m.ctxOptions[m.ctxCursor].mode
-		m.section = sectionLines
+		m.currentCtxMode = m.ctxOptions[m.ctxCursor].mode
+		m.save()
+		m.section = sectionMenu
 	}
 	return m, nil
 }
 
-func (m model) updateLines(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m model) updateLinesPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.section = sectionMenu
+	case "up", "k":
+		if m.lineFocused > 0 {
+			m.lineFocused--
+		}
+	case "down", "j":
+		if m.lineFocused < maxLines-1 {
+			m.lineFocused++
+		}
+	case "enter":
+		m.segCursor = 0
+		m.mode = modeList
+		m.section = sectionLineEdit
+	}
+	return m, nil
+}
+
+func (m model) updateLineEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.mode {
 	case modeList:
 		return m.updateList(msg)
@@ -261,16 +321,7 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	segs := m.currentSegments()
 	switch msg.String() {
 	case "esc":
-		m.quitting = true
-		return m, tea.Quit
-	case "ctrl+s":
-		return m.save()
-	case "tab":
-		m.lineFocused = (m.lineFocused + 1) % maxLines
-		m.clampSegCursor()
-	case "shift+tab":
-		m.lineFocused = (m.lineFocused - 1 + maxLines) % maxLines
-		m.clampSegCursor()
+		m.section = sectionLinesPicker
 	case "up", "k":
 		if m.segCursor > 0 {
 			m.segCursor--
@@ -296,10 +347,12 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			newSegs = append(newSegs, segs[m.segCursor+1:]...)
 			m.lines[m.lineFocused] = newSegs
 			m.clampSegCursor()
+			m.save()
 		}
 	case "c": // clear line
 		m.lines[m.lineFocused] = nil
 		m.segCursor = 0
+		m.save()
 	case " ": // space: edit separator inline
 		if len(segs) > 0 && segs[m.segCursor].Kind == pet.KindSeparator {
 			m.mode = modeSepEdit
@@ -348,6 +401,7 @@ func (m model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			seg := pet.Segment{Kind: pet.KindToken, Value: item}
 			m.applySegment(seg)
 			m.mode = modeList
+			m.save()
 		}
 	}
 	return m, nil
@@ -395,6 +449,7 @@ func (m model) updateTextEdit(msg tea.KeyMsg, isCmd bool) (tea.Model, tea.Cmd) {
 			m.applySegment(seg)
 		}
 		m.mode = modeList
+		m.save()
 	case "backspace":
 		if len(m.editBuf) > 0 && m.editCursor > 0 {
 			m.editBuf = append(m.editBuf[:m.editCursor-1], m.editBuf[m.editCursor:]...)
@@ -424,7 +479,7 @@ func (m model) updateTextEdit(msg tea.KeyMsg, isCmd bool) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) save() (tea.Model, tea.Cmd) {
+func (m *model) save() {
 	var lines []string
 	for i := 0; i < maxLines; i++ {
 		if len(m.lines[i]) > 0 {
@@ -435,32 +490,16 @@ func (m model) save() (tea.Model, tea.Cmd) {
 		lines = pet.DefaultLines
 	}
 	cfg := &pet.Config{
-		Species:     m.chosenSpecies,
-		ContextMode: m.chosenCtxMode,
+		Species:     m.current,
+		ContextMode: m.currentCtxMode,
 		Lines:       lines,
 	}
 	if err := pet.SaveConfig(cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "Error saving config: %v\n", err)
-		return m, tea.Quit
 	}
-	m.saved = true
-	m.quitting = true
-	return m, tea.Quit
 }
 
 func (m model) View() string {
-	if m.saved {
-		opt := m.options[m.cursor]
-		ctxOpt := m.ctxOptions[m.ctxCursor]
-		lineCount := 0
-		for i := 0; i < maxLines; i++ {
-			if len(m.lines[i]) > 0 {
-				lineCount++
-			}
-		}
-		return savedStyle.Render(fmt.Sprintf("Saved! Pet: %s %s | Context: %s | Lines: %d",
-			opt.label, opt.preview, ctxOpt.label, lineCount)) + "\n"
-	}
 	if m.quitting {
 		return ""
 	}
@@ -468,64 +507,145 @@ func (m model) View() string {
 	var b strings.Builder
 
 	switch m.section {
+	case sectionMenu:
+		m.viewMenu(&b)
 	case sectionSpecies:
-		b.WriteString(titleStyle.Render("Choose your pet species"))
-		b.WriteString("\n\n")
-
-		for i, opt := range m.options {
-			cursor := "  "
-			if i == m.cursor {
-				cursor = cursorStyle.Render("> ")
-			}
-
-			name := opt.label
-			if opt.species == m.current {
-				name += " (current)"
-			}
-
-			if i == m.cursor {
-				b.WriteString(fmt.Sprintf("%s%s  %s\n", cursor, selectedStyle.Render(name), opt.preview))
-			} else {
-				b.WriteString(fmt.Sprintf("%s%s  %s\n", cursor, dimStyle.Render(name), dimStyle.Render(opt.preview)))
-			}
-		}
-
+		m.viewSpecies(&b)
 	case sectionContextMode:
-		b.WriteString(titleStyle.Render("Context bar mode"))
-		b.WriteString("\n\n")
-
-		for i, opt := range m.ctxOptions {
-			cursor := "  "
-			if i == m.ctxCursor {
-				cursor = cursorStyle.Render("> ")
-			}
-
-			name := opt.label
-			if opt.mode == m.currentCtxMode {
-				name += " (current)"
-			}
-			detail := fmt.Sprintf("%s -- %s", name, opt.desc)
-
-			if i == m.ctxCursor {
-				b.WriteString(fmt.Sprintf("%s%s\n", cursor, selectedStyle.Render(detail)))
-			} else {
-				b.WriteString(fmt.Sprintf("%s%s\n", cursor, dimStyle.Render(detail)))
-			}
-		}
-
-	case sectionLines:
-		m.viewLines(&b)
+		m.viewContextMode(&b)
+	case sectionLinesPicker:
+		m.viewLinesPicker(&b)
+	case sectionLineEdit:
+		m.viewLineEdit(&b)
 	}
 
-	b.WriteString(dimStyle.Render("\nesc quit"))
 	b.WriteString("\n")
 	return b.String()
 }
 
-func (m model) viewLines(b *strings.Builder) {
+func (m model) viewMenu(b *strings.Builder) {
+	b.WriteString(titleStyle.Render("Claude Pet Config"))
+	b.WriteString("\n\n")
+
+	items := menuItems()
+	for i, item := range items {
+		cursor := "  "
+		if i == m.menuCursor {
+			cursor = cursorStyle.Render("> ")
+		}
+
+		label := item.label
+		switch item.section {
+		case sectionSpecies:
+			label += fmt.Sprintf(" (%s)", m.current)
+		case sectionContextMode:
+			for _, o := range m.ctxOptions {
+				if o.mode == m.currentCtxMode {
+					label += fmt.Sprintf(" (%s)", o.label)
+					break
+				}
+			}
+		}
+
+		if i == m.menuCursor {
+			b.WriteString(fmt.Sprintf("%s%s\n", cursor, selectedStyle.Render(label)))
+		} else {
+			b.WriteString(fmt.Sprintf("%s%s\n", cursor, dimStyle.Render(label)))
+		}
+	}
+
+	// Exit item
+	cursor := "  "
+	if m.menuCursor == len(items) {
+		cursor = cursorStyle.Render("> ")
+		b.WriteString(fmt.Sprintf("%s%s\n", cursor, selectedStyle.Render("Exit")))
+	} else {
+		b.WriteString(fmt.Sprintf("%s%s\n", cursor, dimStyle.Render("Exit")))
+	}
+}
+
+func (m model) viewSpecies(b *strings.Builder) {
+	b.WriteString(titleStyle.Render("Select Pet"))
+	b.WriteString("  ")
+	b.WriteString(dimStyle.Render("esc: back"))
+	b.WriteString("\n\n")
+
+	for i, opt := range m.options {
+		cursor := "  "
+		if i == m.cursor {
+			cursor = cursorStyle.Render("> ")
+		}
+
+		name := opt.label
+		if opt.species == m.current {
+			name += " (current)"
+		}
+
+		if i == m.cursor {
+			b.WriteString(fmt.Sprintf("%s%s  %s\n", cursor, selectedStyle.Render(name), opt.preview))
+		} else {
+			b.WriteString(fmt.Sprintf("%s%s  %s\n", cursor, dimStyle.Render(name), dimStyle.Render(opt.preview)))
+		}
+	}
+}
+
+func (m model) viewContextMode(b *strings.Builder) {
+	b.WriteString(titleStyle.Render("Context Mode"))
+	b.WriteString("  ")
+	b.WriteString(dimStyle.Render("esc: back"))
+	b.WriteString("\n\n")
+
+	for i, opt := range m.ctxOptions {
+		cursor := "  "
+		if i == m.ctxCursor {
+			cursor = cursorStyle.Render("> ")
+		}
+
+		name := opt.label
+		if opt.mode == m.currentCtxMode {
+			name += " (current)"
+		}
+		detail := fmt.Sprintf("%s -- %s", name, opt.desc)
+
+		if i == m.ctxCursor {
+			b.WriteString(fmt.Sprintf("%s%s\n", cursor, selectedStyle.Render(detail)))
+		} else {
+			b.WriteString(fmt.Sprintf("%s%s\n", cursor, dimStyle.Render(detail)))
+		}
+	}
+}
+
+func (m model) viewLinesPicker(b *strings.Builder) {
+	b.WriteString(titleStyle.Render("Edit Lines"))
+	b.WriteString("  ")
+	b.WriteString(dimStyle.Render("esc: back"))
+	b.WriteString("\n\n")
+
+	sample := pet.SampleSegmentData(m.current, pet.SizeNormal)
+	for i := 0; i < maxLines; i++ {
+		cursor := "  "
+		if i == m.lineFocused {
+			cursor = cursorStyle.Render("> ")
+		}
+
+		label := "(empty)"
+		if len(m.lines[i]) > 0 {
+			tmpl := pet.SegmentsToTemplate(m.lines[i])
+			label = pet.RenderTemplate(tmpl, sample)
+		}
+
+		line := fmt.Sprintf("Line %d: %s", i+1, label)
+		if i == m.lineFocused {
+			b.WriteString(fmt.Sprintf("%s%s\n", cursor, selectedStyle.Render(line)))
+		} else {
+			b.WriteString(fmt.Sprintf("%s%s\n", cursor, dimStyle.Render(line)))
+		}
+	}
+}
+
+func (m model) viewLineEdit(b *strings.Builder) {
 	// Live preview box
-	species := m.chosenSpecies
-	sample := pet.SampleSegmentData(species, pet.SizeNormal)
+	sample := pet.SampleSegmentData(m.current, pet.SizeNormal)
 	var previewLines []string
 	for i := 0; i < maxLines; i++ {
 		if len(m.lines[i]) == 0 {
@@ -541,14 +661,14 @@ func (m model) viewLines(b *strings.Builder) {
 	if previewContent == "" {
 		previewContent = dimStyle.Render("  (empty)")
 	}
-	header := "> Preview  (ctrl+s to save)"
+	header := "> Preview"
 	b.WriteString(boxStyle.Render(header + "\n" + previewContent))
 	b.WriteString("\n\n")
 
-	// Line tabs
+	// Line header
 	b.WriteString(titleStyle.Render(fmt.Sprintf("Edit Line %d", m.lineFocused+1)))
 	b.WriteString("  ")
-	b.WriteString(dimStyle.Render("tab: switch line"))
+	b.WriteString(dimStyle.Render("esc: back"))
 	b.WriteString("\n")
 
 	// Key hints
@@ -556,7 +676,7 @@ func (m model) viewLines(b *strings.Builder) {
 	case modeList:
 		b.WriteString(dimStyle.Render("up/down select  left/right change type  space edit sep"))
 		b.WriteString("\n")
-		b.WriteString(dimStyle.Render("(a)dd  (i)nsert  (d)elete  (c)lear  ctrl+s save"))
+		b.WriteString(dimStyle.Render("(a)dd  (i)nsert  (d)elete  (c)lear"))
 	case modePicker:
 		b.WriteString(dimStyle.Render("up/down select  enter choose  esc back"))
 	case modeSepEdit:

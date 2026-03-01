@@ -19,7 +19,7 @@ var (
 	accentStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
 	cursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
 	dimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("242"))
-	hintStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Italic(true)
+	hintStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Italic(true)
 	valueStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("114"))
 	checkStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
 	boxStyle    = lipgloss.NewStyle().
@@ -1239,7 +1239,7 @@ func nav(b *strings.Builder, hint string) {
 }
 
 func (m model) viewMenu(b *strings.Builder) {
-	header(b, "\U0001F9F8", "ccpetline config")
+	header(b, "\U0001F9F8", fmt.Sprintf("ccpetline config v%s", pet.Version))
 	if m.updateAvailable {
 		b.WriteString(accentStyle.Render(fmt.Sprintf("      Update available: %s (current: v%s)", m.latestVersion, pet.Version)))
 		b.WriteString("\n")
@@ -1425,7 +1425,7 @@ func (m model) viewLinesPicker(b *strings.Builder) {
 	nav(b, "esc back \u00b7 enter edit")
 	b.WriteString("\n")
 
-	lineEmojis := [maxLines]string{"\u0031\ufe0f\u20e3", "\u0032\ufe0f\u20e3", "\u0033\ufe0f\u20e3"}
+	lineEmojis := [maxLines]string{"L1", "L2", "L3"}
 	sample := pet.SampleSegmentData(m.current, pet.SizeNormal, m.barStyle, m.barShowPet, m.barWidth)
 	for i := 0; i < maxLines; i++ {
 		preview := dimStyle.Render("(empty)")

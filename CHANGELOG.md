@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.3
+
+- Show version number in TUI config heading
+- Fix keycap emoji rendering on macOS (replaced with L1/L2/L3)
+- Improve legend/hint text visibility (white instead of dark gray)
+
 ## 0.0.2
 
 - Self-update from TUI: new "Update to vX.Y.Z" menu item when an update is available

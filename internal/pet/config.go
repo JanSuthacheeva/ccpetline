@@ -8,8 +8,8 @@ import (
 
 // DefaultLines is the default 2-line template layout.
 var DefaultLines = []string{
-	"{pet} {mood} | {joy}",
-	"{bar}",
+	"{cwd} | {branch} | {changes} | {model}",
+	"{bar} | {pet} {mood}",
 }
 
 // DefaultSeparator is the default token separator.
@@ -93,11 +93,11 @@ func barShowPetDefault() *bool {
 
 func defaultConfig() *Config {
 	return &Config{
-		Species:     SpeciesGoose,
+		Species:     SpeciesCat,
 		ContextMode: ContextModeCtx,
 		Separator:   DefaultSeparator,
 		Lines:       DefaultLines,
-		BarStyle:    BarClassic,
+		BarStyle:    BarThin,
 		BarShowPet:  barShowPetDefault(),
 		BarWidth:    50,
 	}
@@ -117,7 +117,7 @@ func LoadConfig() *Config {
 		return defaultConfig()
 	}
 	if c.Species == "" {
-		c.Species = SpeciesGoose
+		c.Species = SpeciesCat
 	}
 	if c.ContextMode == "" {
 		c.ContextMode = ContextModeCtx
@@ -128,7 +128,7 @@ func LoadConfig() *Config {
 	switch c.BarStyle {
 	case BarClassic, BarBlock, BarThin, BarDot:
 	default:
-		c.BarStyle = BarClassic
+		c.BarStyle = BarThin
 	}
 	if c.BarShowPet == nil {
 		c.BarShowPet = barShowPetDefault()

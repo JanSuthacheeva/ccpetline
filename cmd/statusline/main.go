@@ -42,7 +42,7 @@ func main() {
 	petLine := pet.FormatPetLine(state)
 	petLine = strings.ReplaceAll(petLine, " ", "\u00A0")
 	fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", petLine)
-	sep := pet.FormatSeparator(state, 40)
+	sep := pet.FormatSeparator(state, 50)
 	fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", sep)
 
 	// Remaining lines: delegate to ccstatusline, fall back to built-in

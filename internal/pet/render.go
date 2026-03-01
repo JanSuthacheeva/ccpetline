@@ -63,7 +63,7 @@ func RenderEmoji(s *State) string {
 	case MoodBored:
 		return base + "\U0001F4AD" // 💭
 	case MoodNapping:
-		return base + "\U0001F634" // 😴
+		return base + "\U0001F4A4" // 💤
 	case MoodGrooming:
 		return base + "\u2728" // ✨
 	case MoodWandering:

@@ -43,6 +43,7 @@ const (
 	sectionWrapCommandEdit
 	sectionColorPicker
 	sectionBarStyle
+	sectionUpdate
 )
 
 const maxLines = 3
@@ -88,18 +89,28 @@ type menuItem struct {
 	section section
 }
 
-func menuItems() []menuItem {
-	return []menuItem{
-		{label: "Display Mode", emoji: "\U0001F4FA", section: sectionDisplayMode},
-		{},
-		{label: "Edit Lines", emoji: "\u270f\ufe0f ", section: sectionLinesPicker},
-		{label: "Select Pet", emoji: "\U0001F43E", section: sectionSpecies},
-		{label: "Separator", emoji: "\u2702\ufe0f ", section: sectionSeparator},
-		{},
-		{label: "Bar Style", emoji: "\U0001F4CA", section: sectionBarStyle},
-		{label: "Context Mode", emoji: "\U0001F4CA", section: sectionContextMode},
-		{label: "Install to Claude Code", emoji: "\U0001F527", section: sectionInstall},
+func (m model) menuItems() []menuItem {
+	var items []menuItem
+	if m.updateAvailable {
+		items = append(items, menuItem{
+			label:   fmt.Sprintf("Update to %s", m.latestVersion),
+			emoji:   "\U0001F680",
+			section: sectionUpdate,
+		})
+		items = append(items, menuItem{}) // separator
 	}
+	items = append(items,
+		menuItem{label: "Display Mode", emoji: "\U0001F4FA", section: sectionDisplayMode},
+		menuItem{},
+		menuItem{label: "Edit Lines", emoji: "\u270f\ufe0f ", section: sectionLinesPicker},
+		menuItem{label: "Select Pet", emoji: "\U0001F43E", section: sectionSpecies},
+		menuItem{label: "Separator", emoji: "\u2702\ufe0f ", section: sectionSeparator},
+		menuItem{},
+		menuItem{label: "Bar Style", emoji: "\U0001F4CA", section: sectionBarStyle},
+		menuItem{label: "Context Mode", emoji: "\U0001F4CA", section: sectionContextMode},
+		menuItem{label: "Install to Claude Code", emoji: "\U0001F527", section: sectionInstall},
+	)
+	return items
 }
 
 var tokenEmoji = map[string]string{
@@ -216,6 +227,10 @@ type model struct {
 
 	installStatus string
 
+	latestVersion   string
+	updateAvailable bool
+	updateStatus    string
+
 	quitting bool
 }
 
@@ -314,12 +329,30 @@ func initialModel() model {
 	}
 }
 
-func (m model) Init() tea.Cmd { return nil }
+type versionMsg struct {
+	latest string
+}
+
+func checkVersionCmd() tea.Msg {
+	latest, err := pet.CheckLatestRelease()
+	if err != nil || latest == "" {
+		return versionMsg{}
+	}
+	return versionMsg{latest: latest}
+}
+
+func (m model) Init() tea.Cmd { return checkVersionCmd }
 
 // --- Update ---
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case versionMsg:
+		if msg.latest != "" {
+			m.latestVersion = msg.latest
+			m.updateAvailable = true
+		}
+		return m, nil
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
 			m.quitting = true
@@ -350,6 +383,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateColorPicker(msg)
 		case sectionBarStyle:
 			return m.updateBarStyle(msg)
+		case sectionUpdate:
+			return m.updateUpdateResult(msg)
 		}
 	}
 	return m, nil
@@ -383,7 +418,7 @@ func menuNthSelectable(items []menuItem, n int) int {
 }
 
 func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	items := menuItems()
+	items := m.menuItems()
 	stop := menuStop(items)
 	switch msg.String() {
 	case "q", "esc":
@@ -407,6 +442,16 @@ func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			break
 		}
 		dest := items[idx].section
+		if dest == sectionUpdate {
+			m.updateStatus = ""
+			m.section = sectionUpdate
+			if err := pet.SelfUpdate(m.latestVersion); err != nil {
+				m.updateStatus = fmt.Sprintf("Error: %v", err)
+			} else {
+				m.updateStatus = "Updated successfully!"
+			}
+			return m, nil
+		}
 		if dest == sectionSeparator {
 			m.editBuf = []rune(strings.TrimSpace(m.separator))
 			m.editCursor = len(m.editBuf)
@@ -422,6 +467,15 @@ func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m model) updateInstall(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.section = sectionMenu
 	return m, nil
+}
+
+func (m model) updateUpdateResult(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if strings.HasPrefix(m.updateStatus, "Error:") {
+		m.section = sectionMenu
+		return m, nil
+	}
+	m.quitting = true
+	return m, tea.Quit
 }
 
 func installToClaudeCode() string {
@@ -1148,6 +1202,8 @@ func (m model) View() string {
 		m.viewColorPicker(&b)
 	case sectionBarStyle:
 		m.viewBarStyle(&b)
+	case sectionUpdate:
+		m.viewUpdate(&b)
 	}
 	b.WriteString("\n")
 	return b.String()
@@ -1184,9 +1240,16 @@ func nav(b *strings.Builder, hint string) {
 
 func (m model) viewMenu(b *strings.Builder) {
 	header(b, "\U0001F9F8", "ccpetline config")
+	if m.updateAvailable {
+		b.WriteString(accentStyle.Render(fmt.Sprintf("      Update available: %s (current: v%s)", m.latestVersion, pet.Version)))
+		b.WriteString("\n")
+		changelogURL := fmt.Sprintf("https://github.com/jansuthacheeva/ccpetline/releases/tag/%s", m.latestVersion)
+		b.WriteString(dimStyle.Render(fmt.Sprintf("      %s", changelogURL)))
+		b.WriteString("\n")
+	}
 	b.WriteString("\n")
 
-	items := menuItems()
+	items := m.menuItems()
 	stop := menuStop(items)
 	selIdx := 0
 	for _, item := range items {
@@ -1282,6 +1345,27 @@ func (m model) viewInstall(b *strings.Builder) {
 	b.WriteString(fmt.Sprintf("      %s\n", m.installStatus))
 	b.WriteString("\n")
 	nav(b, "press any key to return")
+}
+
+func (m model) viewUpdate(b *strings.Builder) {
+	header(b, "\U0001F680", fmt.Sprintf("Update to %s", m.latestVersion))
+	b.WriteString("\n")
+	if m.updateStatus == "" {
+		b.WriteString("      Updating...\n")
+	} else {
+		b.WriteString(fmt.Sprintf("      %s\n", m.updateStatus))
+	}
+	b.WriteString("\n")
+	changelogURL := fmt.Sprintf("https://github.com/jansuthacheeva/ccpetline/releases/tag/%s", m.latestVersion)
+	b.WriteString(fmt.Sprintf("      Changelog: %s\n", dimStyle.Render(changelogURL)))
+	b.WriteString("\n")
+	if strings.HasPrefix(m.updateStatus, "Error:") {
+		nav(b, "press any key to return")
+	} else {
+		b.WriteString("      Please restart ccpetline-config to use the new version.\n")
+		b.WriteString("\n")
+		nav(b, "press any key to quit")
+	}
 }
 
 func (m model) viewDisplayMode(b *strings.Builder) {

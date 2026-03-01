@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.2
+
+- Self-update from TUI: new "Update to vX.Y.Z" menu item when an update is available
+- Downloads and replaces binaries in-place, prompts to restart
+- Changelog link shown in menu and update result screen
+- Supports tar.gz (Linux/macOS) and zip (Windows) release archives
+
 ## 0.0.1
 
 Initial release.

@@ -6,12 +6,21 @@ import (
 	"path/filepath"
 )
 
+// DefaultLines is the default 2-line template layout.
+var DefaultLines = []string{
+	"{pet} {mood} | snacks: {snacks}",
+	"{bar}",
+}
+
 type Config struct {
 	Species     Species     `json:"species"`
 	ContextMode ContextMode `json:"context_mode"`
-	ShowSnacks  *bool       `json:"show_snacks,omitempty"`
-	SingleLine  bool        `json:"single_line,omitempty"`
-	PetOnTop    *bool       `json:"pet_on_top,omitempty"`
+	Lines       []string    `json:"lines,omitempty"`
+
+	// Deprecated fields kept for migration only.
+	ShowSnacks *bool `json:"show_snacks,omitempty"`
+	SingleLine bool  `json:"single_line,omitempty"`
+	PetOnTop   *bool `json:"pet_on_top,omitempty"`
 }
 
 func ConfigPath() string {
@@ -23,8 +32,11 @@ func ConfigPath() string {
 }
 
 func defaultConfig() *Config {
-	t := true
-	return &Config{Species: SpeciesGoose, ContextMode: ContextModeCtx, ShowSnacks: &t, PetOnTop: &t}
+	return &Config{
+		Species:     SpeciesGoose,
+		ContextMode: ContextModeCtx,
+		Lines:       DefaultLines,
+	}
 }
 
 func LoadConfig() *Config {
@@ -46,15 +58,41 @@ func LoadConfig() *Config {
 	if c.ContextMode == "" {
 		c.ContextMode = ContextModeCtx
 	}
-	if c.ShowSnacks == nil {
-		t := true
-		c.ShowSnacks = &t
-	}
-	if c.PetOnTop == nil {
-		t := true
-		c.PetOnTop = &t
-	}
+	migrateConfig(&c)
 	return &c
+}
+
+// migrateConfig converts old ShowSnacks/SingleLine/PetOnTop fields to Lines.
+func migrateConfig(c *Config) {
+	if len(c.Lines) > 0 {
+		// Already migrated, clear old fields.
+		c.ShowSnacks = nil
+		c.SingleLine = false
+		c.PetOnTop = nil
+		return
+	}
+
+	// No Lines set — derive from old fields.
+	showSnacks := c.ShowSnacks == nil || *c.ShowSnacks
+	petOnTop := c.PetOnTop == nil || *c.PetOnTop
+
+	petLine := "{pet} {mood}"
+	if showSnacks {
+		petLine += " | snacks: {snacks}"
+	}
+
+	if c.SingleLine {
+		c.Lines = []string{"{bar}"}
+	} else if petOnTop {
+		c.Lines = []string{petLine, "{bar}"}
+	} else {
+		c.Lines = []string{"{bar}", petLine}
+	}
+
+	// Clear old fields.
+	c.ShowSnacks = nil
+	c.SingleLine = false
+	c.PetOnTop = nil
 }
 
 func SaveConfig(c *Config) error {
@@ -93,9 +131,7 @@ func updateActiveSessions(c *Config) {
 		state := LoadState(path)
 		state.Species = c.Species
 		state.ContextMode = c.ContextMode
-		state.ShowSnacks = c.ShowSnacks != nil && *c.ShowSnacks
-		state.SingleLine = c.SingleLine
-		state.PetOnTop = c.PetOnTop == nil || *c.PetOnTop
+		state.Lines = c.Lines
 		_ = SaveState(path, state)
 	}
 }

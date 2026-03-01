@@ -6,7 +6,7 @@ import "fmt"
 func FormatPetLineKitty(s *State) string {
 	png := SpritePNG(s.Size, s.Mood)
 	if png == nil {
-		return FormatPetLine(s)
+		return RenderEmoji(s) + " " + s.Mood.String()
 	}
 	sprite := KittyInlinePNG(png)
 	suffix := fmt.Sprintf(" %s | snacks: %d", s.Mood.String(), s.Snacks)

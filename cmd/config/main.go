@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -35,6 +37,7 @@ const (
 	sectionSeparator
 	sectionLinesPicker
 	sectionLineEdit
+	sectionInstall
 )
 
 const maxLines = 3
@@ -86,6 +89,7 @@ func menuItems() []menuItem {
 		{label: "Select Pet", emoji: "\U0001F43E", section: sectionSpecies},
 		{label: "Context Mode", emoji: "\U0001F4CA", section: sectionContextMode},
 		{label: "Separator", emoji: "\u2702\ufe0f ", section: sectionSeparator},
+		{label: "Install to Claude Code", emoji: "\U0001F527", section: sectionInstall},
 	}
 }
 
@@ -135,6 +139,8 @@ type model struct {
 	editBuf     []rune
 	editCursor  int
 	editInPlace bool
+
+	installStatus string
 
 	quitting bool
 }
@@ -214,6 +220,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateLinesPicker(msg)
 		case sectionLineEdit:
 			return m.updateLineEdit(msg)
+		case sectionInstall:
+			return m.updateInstall(msg)
 		}
 	}
 	return m, nil
@@ -243,9 +251,70 @@ func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.editBuf = []rune(strings.TrimSpace(m.separator))
 			m.editCursor = len(m.editBuf)
 		}
+		if dest == sectionInstall {
+			m.installStatus = installToClaudeCode()
+		}
 		m.section = dest
 	}
 	return m, nil
+}
+
+func (m model) updateInstall(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	m.section = sectionMenu
+	return m, nil
+}
+
+func installToClaudeCode() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Sprintf("Error: %v", err)
+	}
+
+	settingsPath := filepath.Join(home, ".claude", "settings.json")
+
+	var settings map[string]interface{}
+
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Sprintf("Error reading settings: %v", err)
+		}
+		settings = make(map[string]interface{})
+	} else {
+		if err := json.Unmarshal(data, &settings); err != nil {
+			return fmt.Sprintf("Error parsing settings: %v", err)
+		}
+	}
+
+	want := map[string]interface{}{
+		"type":    "command",
+		"command": "claude-pet-statusline",
+	}
+
+	if existing, ok := settings["statusLine"]; ok {
+		if m, ok := existing.(map[string]interface{}); ok {
+			if m["type"] == "command" && m["command"] == "claude-pet-statusline" {
+				return "Already installed!"
+			}
+		}
+	}
+
+	settings["statusLine"] = want
+
+	out, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("Error encoding settings: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
+		return fmt.Sprintf("Error creating directory: %v", err)
+	}
+
+	if err := os.WriteFile(settingsPath, append(out, '\n'), 0o644); err != nil {
+		return fmt.Sprintf("Error writing settings: %v", err)
+	}
+
+	return "Installed! Restart Claude Code to activate."
 }
 
 func (m model) updateSpecies(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -560,6 +629,8 @@ func (m model) View() string {
 		m.viewLinesPicker(&b)
 	case sectionLineEdit:
 		m.viewLineEdit(&b)
+	case sectionInstall:
+		m.viewInstall(&b)
 	}
 	b.WriteString("\n")
 	return b.String()
@@ -674,6 +745,14 @@ func (m model) viewSeparator(b *strings.Builder) {
 	b.WriteString(fmt.Sprintf("      %s %s\n",
 		dimStyle.Render("preview:"),
 		valueStyle.Render(fmt.Sprintf("{a}%s{b}", preview))))
+}
+
+func (m model) viewInstall(b *strings.Builder) {
+	header(b, "\U0001F527", "Install to Claude Code")
+	b.WriteString("\n")
+	b.WriteString(fmt.Sprintf("      %s\n", m.installStatus))
+	b.WriteString("\n")
+	nav(b, "press any key to return")
 }
 
 func (m model) viewLinesPicker(b *strings.Builder) {

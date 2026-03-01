@@ -31,15 +31,13 @@ func SizeEmoji(size Size) string {
 	case SizeTiny:
 		return "\U0001F423" // hatching chick
 	case SizeNormal:
-		return "\U0001FABF" // goose
+		return "\U0001F425" // baby chick
 	case SizeChonky:
-		return "\U0001FABF\U0001FABF" // double goose
+		return "\U0001FABF" // goose
 	case SizeMegaChonk:
-		return "\U0001F986" // duck
-	case SizeAbsoluteUnit:
 		return "\U0001F9A2" // swan
 	default:
-		return "\U0001FABF"
+		return "\U0001F425"
 	}
 }
 

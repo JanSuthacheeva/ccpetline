@@ -7,7 +7,8 @@ import (
 )
 
 type Config struct {
-	Species Species `json:"species"`
+	Species     Species     `json:"species"`
+	ContextMode ContextMode `json:"context_mode"`
 }
 
 func ConfigPath() string {
@@ -21,18 +22,21 @@ func ConfigPath() string {
 func LoadConfig() *Config {
 	path := ConfigPath()
 	if path == "" {
-		return &Config{Species: SpeciesGoose}
+		return &Config{Species: SpeciesGoose, ContextMode: ContextModeCtx}
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return &Config{Species: SpeciesGoose}
+		return &Config{Species: SpeciesGoose, ContextMode: ContextModeCtx}
 	}
 	var c Config
 	if err := json.Unmarshal(data, &c); err != nil {
-		return &Config{Species: SpeciesGoose}
+		return &Config{Species: SpeciesGoose, ContextMode: ContextModeCtx}
 	}
 	if c.Species == "" {
 		c.Species = SpeciesGoose
+	}
+	if c.ContextMode == "" {
+		c.ContextMode = ContextModeCtx
 	}
 	return &c
 }
@@ -72,6 +76,7 @@ func updateActiveSessions(c *Config) {
 		path := filepath.Join(stateDir, name)
 		state := LoadState(path)
 		state.Species = c.Species
+		state.ContextMode = c.ContextMode
 		_ = SaveState(path, state)
 	}
 }

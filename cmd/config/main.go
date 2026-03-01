@@ -19,10 +19,23 @@ var (
 	savedStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("78"))
 )
 
+type section int
+
+const (
+	sectionSpecies section = iota
+	sectionContextMode
+)
+
 type speciesOption struct {
 	species pet.Species
 	label   string
 	preview string // emoji progression
+}
+
+type contextModeOption struct {
+	mode  pet.ContextMode
+	label string
+	desc  string
 }
 
 func speciesOptions() []speciesOption {
@@ -41,17 +54,30 @@ func speciesOptions() []speciesOption {
 	return opts
 }
 
+func contextModeOptions() []contextModeOption {
+	return []contextModeOption{
+		{mode: pet.ContextModeCtx, label: "Ctx", desc: "total context window"},
+		{mode: pet.ContextModeCtxU, label: "Ctx(u)", desc: "usable context (80% threshold)"},
+	}
+}
+
 type model struct {
-	options  []speciesOption
-	cursor   int
-	current  pet.Species
-	saved    bool
-	quitting bool
+	section        section
+	options        []speciesOption
+	ctxOptions     []contextModeOption
+	cursor         int
+	ctxCursor      int
+	current        pet.Species
+	currentCtxMode pet.ContextMode
+	chosenSpecies  pet.Species
+	saved          bool
+	quitting       bool
 }
 
 func initialModel() model {
 	cfg := pet.LoadConfig()
 	opts := speciesOptions()
+	ctxOpts := contextModeOptions()
 	cursor := 0
 	for i, o := range opts {
 		if o.species == cfg.Species {
@@ -59,10 +85,21 @@ func initialModel() model {
 			break
 		}
 	}
+	ctxCursor := 0
+	for i, o := range ctxOpts {
+		if o.mode == cfg.ContextMode {
+			ctxCursor = i
+			break
+		}
+	}
 	return model{
-		options: opts,
-		cursor:  cursor,
-		current: cfg.Species,
+		section:        sectionSpecies,
+		options:        opts,
+		ctxOptions:     ctxOpts,
+		cursor:         cursor,
+		ctxCursor:      ctxCursor,
+		current:        cfg.Species,
+		currentCtxMode: cfg.ContextMode,
 	}
 }
 
@@ -78,20 +115,39 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
+			if m.section == sectionSpecies {
+				if m.cursor > 0 {
+					m.cursor--
+				}
+			} else {
+				if m.ctxCursor > 0 {
+					m.ctxCursor--
+				}
 			}
 		case "down", "j":
-			if m.cursor < len(m.options)-1 {
-				m.cursor++
+			if m.section == sectionSpecies {
+				if m.cursor < len(m.options)-1 {
+					m.cursor++
+				}
+			} else {
+				if m.ctxCursor < len(m.ctxOptions)-1 {
+					m.ctxCursor++
+				}
 			}
 		case "enter":
-			chosen := m.options[m.cursor].species
-			if err := pet.SaveConfig(&pet.Config{Species: chosen}); err != nil {
+			if m.section == sectionSpecies {
+				m.chosenSpecies = m.options[m.cursor].species
+				m.section = sectionContextMode
+				return m, nil
+			}
+			chosenMode := m.ctxOptions[m.ctxCursor].mode
+			cfg := &pet.Config{Species: m.chosenSpecies, ContextMode: chosenMode}
+			if err := pet.SaveConfig(cfg); err != nil {
 				fmt.Fprintf(os.Stderr, "Error saving config: %v\n", err)
 				return m, tea.Quit
 			}
-			m.current = chosen
+			m.current = m.chosenSpecies
+			m.currentCtxMode = chosenMode
 			m.saved = true
 			m.quitting = true
 			return m, tea.Quit
@@ -103,31 +159,57 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	if m.saved {
 		opt := m.options[m.cursor]
-		return savedStyle.Render(fmt.Sprintf("Saved! Your pet is now: %s %s", opt.label, opt.preview)) + "\n"
+		ctxOpt := m.ctxOptions[m.ctxCursor]
+		return savedStyle.Render(fmt.Sprintf("Saved! Pet: %s %s | Context: %s", opt.label, opt.preview, ctxOpt.label)) + "\n"
 	}
 	if m.quitting {
 		return ""
 	}
 
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("Choose your pet species"))
-	b.WriteString("\n\n")
 
-	for i, opt := range m.options {
-		cursor := "  "
-		if i == m.cursor {
-			cursor = cursorStyle.Render("> ")
+	if m.section == sectionSpecies {
+		b.WriteString(titleStyle.Render("Choose your pet species"))
+		b.WriteString("\n\n")
+
+		for i, opt := range m.options {
+			cursor := "  "
+			if i == m.cursor {
+				cursor = cursorStyle.Render("> ")
+			}
+
+			name := opt.label
+			if opt.species == m.current {
+				name += " (current)"
+			}
+
+			if i == m.cursor {
+				b.WriteString(fmt.Sprintf("%s%s  %s\n", cursor, selectedStyle.Render(name), opt.preview))
+			} else {
+				b.WriteString(fmt.Sprintf("%s%s  %s\n", cursor, dimStyle.Render(name), dimStyle.Render(opt.preview)))
+			}
 		}
+	} else {
+		b.WriteString(titleStyle.Render("Context bar mode"))
+		b.WriteString("\n\n")
 
-		name := opt.label
-		if opt.species == m.current {
-			name += " (current)"
-		}
+		for i, opt := range m.ctxOptions {
+			cursor := "  "
+			if i == m.ctxCursor {
+				cursor = cursorStyle.Render("> ")
+			}
 
-		if i == m.cursor {
-			b.WriteString(fmt.Sprintf("%s%s  %s\n", cursor, selectedStyle.Render(name), opt.preview))
-		} else {
-			b.WriteString(fmt.Sprintf("%s%s  %s\n", cursor, dimStyle.Render(name), dimStyle.Render(opt.preview)))
+			name := opt.label
+			if opt.mode == m.currentCtxMode {
+				name += " (current)"
+			}
+			detail := fmt.Sprintf("%s — %s", name, opt.desc)
+
+			if i == m.ctxCursor {
+				b.WriteString(fmt.Sprintf("%s%s\n", cursor, selectedStyle.Render(detail)))
+			} else {
+				b.WriteString(fmt.Sprintf("%s%s\n", cursor, dimStyle.Render(detail)))
+			}
 		}
 	}
 

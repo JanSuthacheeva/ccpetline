@@ -65,14 +65,25 @@ func RenderEmoji(s *State) string {
 // FormatSeparator returns a separator line with the pet emoji positioned by context %.
 func FormatSeparator(s *State, width int) string {
 	emoji := SizeEmoji(s.Species, s.Size)
-	pos := int(s.ContextPct / 100 * float64(width-1))
+
+	displayPct := s.ContextPct
+	label := "Ctx"
+	if s.ContextMode == ContextModeCtxU {
+		displayPct = s.ContextPct / 0.8
+		if displayPct > 100 {
+			displayPct = 100
+		}
+		label = "Ctx(u)"
+	}
+
+	pos := int(displayPct / 100 * float64(width-1))
 	if pos < 0 {
 		pos = 0
 	}
 	if pos > width-1 {
 		pos = width - 1
 	}
-	suffix := fmt.Sprintf(" Ctx: %.1f%%", s.ContextPct)
+	suffix := fmt.Sprintf(" %s: %.1f%%", label, displayPct)
 	left := strings.Repeat("\u2500", pos)
 	rightLen := width - 1 - pos - len(suffix)
 	if rightLen < 0 {

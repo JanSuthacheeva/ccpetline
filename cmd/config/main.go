@@ -42,6 +42,7 @@ const (
 	sectionWrapCommandPicker
 	sectionWrapCommandEdit
 	sectionColorPicker
+	sectionBarStyle
 )
 
 const maxLines = 3
@@ -95,6 +96,7 @@ func menuItems() []menuItem {
 		{label: "Select Pet", emoji: "\U0001F43E", section: sectionSpecies},
 		{label: "Separator", emoji: "\u2702\ufe0f ", section: sectionSeparator},
 		{},
+		{label: "Bar Style", emoji: "\U0001F4CA", section: sectionBarStyle},
 		{label: "Context Mode", emoji: "\U0001F4CA", section: sectionContextMode},
 		{label: "Install to Claude Code", emoji: "\U0001F527", section: sectionInstall},
 	}
@@ -207,6 +209,11 @@ type model struct {
 	wrapCommand      string
 	wrapPickerCursor int
 
+	barStyle       pet.BarStyle
+	barShowPet     bool
+	barWidth       int
+	barStyleCursor int
+
 	installStatus string
 
 	quitting bool
@@ -265,6 +272,26 @@ func initialModel() model {
 		}
 	}
 
+	barShowPet := true
+	if cfg.BarShowPet != nil {
+		barShowPet = *cfg.BarShowPet
+	}
+	barStyle := cfg.BarStyle
+	if barStyle == "" {
+		barStyle = pet.BarClassic
+	}
+	barStyleCursor := 0
+	for i, s := range pet.AllBarStyles {
+		if s == barStyle {
+			barStyleCursor = i
+			break
+		}
+	}
+	barWidth := cfg.BarWidth
+	if barWidth < 20 || barWidth > 80 {
+		barWidth = 50
+	}
+
 	return model{
 		section:        sectionMenu,
 		options:        opts,
@@ -280,6 +307,10 @@ func initialModel() model {
 		displayMode:    cfg.DisplayMode,
 		displayCursor:  displayCursor,
 		wrapCommand:    cfg.WrapCommand,
+		barStyle:       barStyle,
+		barShowPet:     barShowPet,
+		barWidth:       barWidth,
+		barStyleCursor: barStyleCursor,
 	}
 }
 
@@ -317,6 +348,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateWrapCommandEdit(msg)
 		case sectionColorPicker:
 			return m.updateColorPicker(msg)
+		case sectionBarStyle:
+			return m.updateBarStyle(msg)
 		}
 	}
 	return m, nil
@@ -894,6 +927,99 @@ func (m model) updateColorPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// barStyleRows: 0..len(AllBarStyles)-1 = styles, next = pet toggle, next = width
+const barRowPetToggle = 4 // len(AllBarStyles)
+const barRowWidth = 5
+
+func (m model) updateBarStyle(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	maxRow := barRowWidth
+	switch msg.String() {
+	case "esc":
+		m.section = sectionMenu
+	case "up", "k":
+		if m.barStyleCursor > 0 {
+			m.barStyleCursor--
+		}
+	case "down", "j":
+		if m.barStyleCursor < maxRow {
+			m.barStyleCursor++
+		}
+	case "enter":
+		if m.barStyleCursor < len(pet.AllBarStyles) {
+			m.barStyle = pet.AllBarStyles[m.barStyleCursor]
+			m.save()
+		} else if m.barStyleCursor == barRowPetToggle {
+			m.barShowPet = !m.barShowPet
+			m.save()
+		}
+	case "left", "h":
+		if m.barStyleCursor == barRowWidth && m.barWidth > 20 {
+			m.barWidth--
+			m.save()
+		}
+	case "right", "l":
+		if m.barStyleCursor == barRowWidth && m.barWidth < 80 {
+			m.barWidth++
+			m.save()
+		}
+	case "-":
+		if m.barStyleCursor == barRowWidth && m.barWidth > 20 {
+			m.barWidth--
+			m.save()
+		}
+	case "+", "=":
+		if m.barStyleCursor == barRowWidth && m.barWidth < 80 {
+			m.barWidth++
+			m.save()
+		}
+	}
+	return m, nil
+}
+
+func (m model) viewBarStyle(b *strings.Builder) {
+	header(b, "\U0001F4CA", "Bar Style")
+	nav(b, "esc back \u00b7 enter select \u00b7 \u2190\u2192 adjust width")
+	b.WriteString("\n")
+
+	for i, style := range pet.AllBarStyles {
+		check := " "
+		if style == m.barStyle {
+			check = checkStyle.Render("\u2713")
+		}
+		// Build a short preview bar for this style.
+		preview := m.barPreview(style, m.barShowPet)
+		text := fmt.Sprintf("%s %s  %s", check, pet.BarStyleLabel(style), dimStyle.Render(preview))
+		row(b, i == m.barStyleCursor, "\U0001F4CA", text)
+	}
+
+	b.WriteString("\n")
+
+	// Pet toggle row
+	petLabel := "Show pet in bar"
+	petVal := "off"
+	if m.barShowPet {
+		petVal = "on"
+	}
+	petText := fmt.Sprintf("%s %s", petLabel, valueStyle.Render(petVal))
+	row(b, m.barStyleCursor == barRowPetToggle, "\U0001F43E", petText)
+
+	// Width row
+	widthText := fmt.Sprintf("Bar width %s", valueStyle.Render(fmt.Sprintf("%d", m.barWidth)))
+	row(b, m.barStyleCursor == barRowWidth, "\u2194\ufe0f", widthText)
+}
+
+func (m model) barPreview(style pet.BarStyle, showPet bool) string {
+	s := &pet.State{
+		Species:    m.current,
+		Size:       pet.SizeNormal,
+		ContextPct: 53.1,
+		BarStyle:   style,
+		BarShowPet: showPet,
+		BarWidth:   m.barWidth,
+	}
+	return pet.FormatSeparator(s)
+}
+
 func (m *model) save() {
 	var lines []string
 	for i := 0; i < maxLines; i++ {
@@ -927,6 +1053,7 @@ func (m *model) save() {
 			break
 		}
 	}
+	barShowPet := &m.barShowPet
 	cfg := &pet.Config{
 		Species:     m.current,
 		ContextMode: m.currentCtxMode,
@@ -935,6 +1062,9 @@ func (m *model) save() {
 		LineColors:  lc,
 		DisplayMode: m.displayMode,
 		WrapCommand: m.wrapCommand,
+		BarStyle:    m.barStyle,
+		BarShowPet:  barShowPet,
+		BarWidth:    m.barWidth,
 	}
 	if err := pet.SaveConfig(cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "Error saving config: %v\n", err)
@@ -971,6 +1101,8 @@ func (m model) View() string {
 		m.viewWrapCommandEdit(&b)
 	case sectionColorPicker:
 		m.viewColorPicker(&b)
+	case sectionBarStyle:
+		m.viewBarStyle(&b)
 	}
 	b.WriteString("\n")
 	return b.String()
@@ -1030,6 +1162,8 @@ func (m model) viewMenu(b *strings.Builder) {
 			}
 		case sectionSeparator:
 			detail = fmt.Sprintf("%q", strings.TrimSpace(m.separator))
+		case sectionBarStyle:
+			detail = pet.BarStyleLabel(m.barStyle)
 		case sectionDisplayMode:
 			detail = pet.DisplayModeLabel(m.displayMode)
 		}
@@ -1163,7 +1297,7 @@ func (m model) viewLinesPicker(b *strings.Builder) {
 	b.WriteString("\n")
 
 	lineEmojis := [maxLines]string{"\u0031\ufe0f\u20e3", "\u0032\ufe0f\u20e3", "\u0033\ufe0f\u20e3"}
-	sample := pet.SampleSegmentData(m.current, pet.SizeNormal)
+	sample := pet.SampleSegmentData(m.current, pet.SizeNormal, m.barStyle, m.barShowPet, m.barWidth)
 	for i := 0; i < maxLines; i++ {
 		preview := dimStyle.Render("(empty)")
 		if len(m.lines[i]) > 0 {
@@ -1176,7 +1310,7 @@ func (m model) viewLinesPicker(b *strings.Builder) {
 
 func (m model) viewLineEdit(b *strings.Builder) {
 	// Preview box
-	sample := pet.SampleSegmentData(m.current, pet.SizeNormal)
+	sample := pet.SampleSegmentData(m.current, pet.SizeNormal, m.barStyle, m.barShowPet, m.barWidth)
 	var previewLines []string
 	for i := 0; i < maxLines; i++ {
 		if len(m.lines[i]) == 0 {
@@ -1391,7 +1525,7 @@ func (m model) viewColorPicker(b *strings.Builder) {
 	// Preview: show the focused segment text in the selected color.
 	segs := m.lines[m.lineFocused]
 	if m.segCursor < len(segs) {
-		sample := pet.SampleSegmentData(m.current, pet.SizeNormal)
+		sample := pet.SampleSegmentData(m.current, pet.SizeNormal, m.barStyle, m.barShowPet, m.barWidth)
 		seg := segs[m.segCursor]
 		var text string
 		switch seg.Kind {

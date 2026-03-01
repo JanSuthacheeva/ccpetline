@@ -17,10 +17,14 @@ func FormatPetLineKitty(s *State) string {
 }
 
 // FormatSeparatorKitty returns the separator with a sprite pet positioned by context %.
-func FormatSeparatorKitty(s *State, width int) string {
+func FormatSeparatorKitty(s *State) string {
 	png := SpritePNG(s.Size, MoodBored)
 	if png == nil {
-		return FormatSeparator(s, width)
+		return FormatSeparator(s)
+	}
+	width := s.BarWidth
+	if width < 20 {
+		width = 50
 	}
 	displayPct := s.ContextPct
 	label := "Ctx"

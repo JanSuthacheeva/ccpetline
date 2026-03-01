@@ -31,13 +31,22 @@ type Segment struct {
 var AllTokens = []string{"pet", "mood", "joy", "bar", "model", "ctx", "cost", "changes", "cwd", "dir", "branch"}
 
 // SampleSegmentData returns example values for preview rendering.
-func SampleSegmentData(species Species, size Size) *SegmentData {
+func SampleSegmentData(species Species, size Size, barStyle BarStyle, barShowPet bool, barWidth int) *SegmentData {
 	emoji := SizeEmoji(species, size)
+	// Build a sample bar using the given style settings.
+	sampleState := &State{
+		Species:    species,
+		Size:       size,
+		ContextPct: 53.1,
+		BarStyle:   barStyle,
+		BarShowPet: barShowPet,
+		BarWidth:   barWidth,
+	}
 	return &SegmentData{
 		Pet:     emoji,
 		Mood:    "bored",
 		Snacks:  "Joy: 5",
-		Bar:     strings.Repeat("\u2500", 3) + emoji + strings.Repeat("\u2500", 12) + " Ctx: 53.1%",
+		Bar:     FormatSeparator(sampleState),
 		Model:   "Model: Opus 4",
 		Ctx:     "53%",
 		Cost:    "$0.42",
@@ -146,7 +155,7 @@ type SegmentData struct {
 }
 
 // BuildSegmentData resolves all token values from state, Claude JSON, and OS.
-func BuildSegmentData(s *State, claudeJSON map[string]any, barWidth int) *SegmentData {
+func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
 	d := &SegmentData{}
 
 	// {cwd}
@@ -174,7 +183,7 @@ func BuildSegmentData(s *State, claudeJSON map[string]any, barWidth int) *Segmen
 	d.Snacks = fmt.Sprintf("Joy: %d", s.Happiness)
 
 	// {bar}
-	d.Bar = FormatSeparator(s, barWidth)
+	d.Bar = FormatSeparator(s)
 
 	// Fields from claudeJSON
 	if claudeJSON == nil {
@@ -357,8 +366,8 @@ func RenderTemplate(tmpl string, data *SegmentData) string {
 
 // RenderLines renders all configured line templates, skipping empty results.
 // Falls back to a single {bar} line if everything is empty.
-func RenderLines(s *State, claudeJSON map[string]any, barWidth int) []string {
-	data := BuildSegmentData(s, claudeJSON, barWidth)
+func RenderLines(s *State, claudeJSON map[string]any) []string {
+	data := BuildSegmentData(s, claudeJSON)
 
 	var lines []string
 	for i, tmpl := range s.Lines {
@@ -379,7 +388,7 @@ func RenderLines(s *State, claudeJSON map[string]any, barWidth int) []string {
 	}
 
 	if len(lines) == 0 {
-		lines = []string{FormatSeparator(s, barWidth)}
+		lines = []string{FormatSeparator(s)}
 	}
 
 	return lines

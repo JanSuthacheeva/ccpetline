@@ -190,6 +190,9 @@ type State struct {
 	LineColors [][]uint8   `json:"line_colors,omitempty"`
 	DisplayMode DisplayMode `json:"display_mode,omitempty"`
 	WrapCommand string      `json:"wrap_command,omitempty"`
+	BarStyle    BarStyle    `json:"bar_style,omitempty"`
+	BarShowPet  bool        `json:"bar_show_pet"`
+	BarWidth    int         `json:"bar_width,omitempty"`
 	Mood        Mood        `json:"mood"`
 	Size        Size        `json:"size"`
 	ContextPct  float64     `json:"context_pct"`
@@ -200,6 +203,10 @@ type State struct {
 
 func NewState() *State {
 	cfg := LoadConfig()
+	barShowPet := true
+	if cfg.BarShowPet != nil {
+		barShowPet = *cfg.BarShowPet
+	}
 	return &State{
 		Species:     cfg.Species,
 		ContextMode: cfg.ContextMode,
@@ -207,6 +214,9 @@ func NewState() *State {
 		LineColors: cfg.LineColors,
 		DisplayMode: cfg.DisplayMode,
 		WrapCommand: cfg.WrapCommand,
+		BarStyle:    cfg.BarStyle,
+		BarShowPet:  barShowPet,
+		BarWidth:    cfg.BarWidth,
 		Mood:        MoodSleeping,
 		Size:        SizeTiny,
 		LastEvent:   time.Now(),

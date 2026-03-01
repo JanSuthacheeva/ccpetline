@@ -40,7 +40,7 @@ func main() {
 	state.ComputeMood()
 	_ = pet.SaveState(statePath, state)
 
-	petLines := pet.RenderLines(state, claudeJSON, 50)
+	petLines := pet.RenderLines(state, claudeJSON)
 
 	if state.DisplayMode == pet.ModePrepend || state.DisplayMode == pet.ModeAppend {
 		wrappedLines := runWrapCommand(state.WrapCommand, data)

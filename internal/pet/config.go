@@ -25,6 +25,30 @@ const (
 
 var AllDisplayModes = []DisplayMode{ModeStandalone, ModePrepend, ModeAppend}
 
+type BarStyle string
+
+const (
+	BarClassic BarStyle = "classic"
+	BarBlock   BarStyle = "block"
+	BarThin    BarStyle = "thin"
+	BarDot     BarStyle = "dot"
+)
+
+var AllBarStyles = []BarStyle{BarClassic, BarBlock, BarThin, BarDot}
+
+func BarStyleLabel(s BarStyle) string {
+	switch s {
+	case BarBlock:
+		return "Block"
+	case BarThin:
+		return "Thin"
+	case BarDot:
+		return "Dot"
+	default:
+		return "Classic"
+	}
+}
+
 func DisplayModeLabel(m DisplayMode) string {
 	switch m {
 	case ModePrepend:
@@ -44,6 +68,9 @@ type Config struct {
 	LineColors [][]uint8   `json:"line_colors,omitempty"`
 	DisplayMode DisplayMode `json:"display_mode,omitempty"`
 	WrapCommand string      `json:"wrap_command,omitempty"`
+	BarStyle    BarStyle    `json:"bar_style,omitempty"`
+	BarShowPet  *bool       `json:"bar_show_pet,omitempty"`
+	BarWidth    int         `json:"bar_width,omitempty"`
 
 	// Deprecated fields kept for migration only.
 	ShowSnacks *bool `json:"show_snacks,omitempty"`
@@ -59,12 +86,20 @@ func ConfigPath() string {
 	return filepath.Join(home, ".claude-pet", "config.json")
 }
 
+func barShowPetDefault() *bool {
+	v := true
+	return &v
+}
+
 func defaultConfig() *Config {
 	return &Config{
 		Species:     SpeciesGoose,
 		ContextMode: ContextModeCtx,
 		Separator:   DefaultSeparator,
 		Lines:       DefaultLines,
+		BarStyle:    BarClassic,
+		BarShowPet:  barShowPetDefault(),
+		BarWidth:    50,
 	}
 }
 
@@ -89,6 +124,17 @@ func LoadConfig() *Config {
 	}
 	if c.Separator == "" {
 		c.Separator = DefaultSeparator
+	}
+	switch c.BarStyle {
+	case BarClassic, BarBlock, BarThin, BarDot:
+	default:
+		c.BarStyle = BarClassic
+	}
+	if c.BarShowPet == nil {
+		c.BarShowPet = barShowPetDefault()
+	}
+	if c.BarWidth < 20 || c.BarWidth > 80 {
+		c.BarWidth = 50
 	}
 	migrateConfig(&c)
 	return &c
@@ -167,6 +213,11 @@ func updateActiveSessions(c *Config) {
 		state.LineColors = c.LineColors
 		state.DisplayMode = c.DisplayMode
 		state.WrapCommand = c.WrapCommand
+		state.BarStyle = c.BarStyle
+		if c.BarShowPet != nil {
+			state.BarShowPet = *c.BarShowPet
+		}
+		state.BarWidth = c.BarWidth
 		_ = SaveState(path, state)
 	}
 }

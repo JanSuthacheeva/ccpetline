@@ -75,9 +75,26 @@ func RenderEmoji(s *State) string {
 	}
 }
 
+// barChars maps each bar style to its (filled, empty) character pair.
+var barChars = map[BarStyle][2]string{
+	BarClassic: {"\u2500", "\u2500"},
+	BarBlock:   {"\u2593", "\u2591"},
+	BarThin:    {"\u2501", "\u254C"},
+	BarDot:     {"\u25CF", "\u25CB"},
+}
+
 // FormatSeparator returns a separator line with the pet emoji positioned by context %.
-func FormatSeparator(s *State, width int) string {
-	emoji := SizeEmoji(s.Species, s.Size)
+func FormatSeparator(s *State) string {
+	width := s.BarWidth
+	if width < 20 {
+		width = 50
+	}
+
+	chars, ok := barChars[s.BarStyle]
+	if !ok {
+		chars = barChars[BarClassic]
+	}
+	filled, empty := chars[0], chars[1]
 
 	displayPct := s.ContextPct
 	label := "Ctx"
@@ -94,18 +111,31 @@ func FormatSeparator(s *State, width int) string {
 	if barWidth < 2 {
 		barWidth = 2
 	}
-	pos := int(displayPct / 100 * float64(barWidth-1))
-	if pos < 0 {
-		pos = 0
+
+	if s.BarShowPet {
+		emoji := SizeEmoji(s.Species, s.Size)
+		pos := int(displayPct / 100 * float64(barWidth-1))
+		if pos < 0 {
+			pos = 0
+		}
+		if pos > barWidth-1 {
+			pos = barWidth - 1
+		}
+		left := strings.Repeat(filled, pos)
+		rightLen := barWidth - 1 - pos
+		if rightLen < 0 {
+			rightLen = 0
+		}
+		right := strings.Repeat(empty, rightLen)
+		return left + emoji + right + suffix
 	}
-	if pos > barWidth-1 {
-		pos = barWidth - 1
+
+	filledLen := int(displayPct / 100 * float64(barWidth))
+	if filledLen < 0 {
+		filledLen = 0
 	}
-	left := strings.Repeat("\u2500", pos)
-	rightLen := barWidth - 1 - pos
-	if rightLen < 0 {
-		rightLen = 0
+	if filledLen > barWidth {
+		filledLen = barWidth
 	}
-	right := strings.Repeat("\u2500", rightLen)
-	return left + emoji + right + suffix
+	return strings.Repeat(filled, filledLen) + strings.Repeat(empty, barWidth-filledLen) + suffix
 }

@@ -2,6 +2,14 @@
 
 A terminal pet that lives alongside your Claude Code sessions. It reacts to tool calls and grows fatter as your context window fills up.
 
+<p align="center">
+  <img src="docs/images/statusline.png" alt="Status line with pet" width="600">
+</p>
+<p align="center">
+  <img src="docs/images/config.png" alt="TUI configurator" width="320">
+  <img src="docs/images/pets.png" alt="Pet selection" width="320">
+</p>
+
 ## Install
 
 One-liner:

@@ -39,7 +39,7 @@ func SampleSegmentData(species Species, size Size) *SegmentData {
 		Model:   "Opus 4",
 		Ctx:     "53%",
 		Cost:    "$0.42",
-		Changes: "+12/-3",
+		Changes: "(+12/-3)",
 		Cwd:     "~/project",
 		Branch:  "main",
 	}
@@ -191,7 +191,7 @@ func BuildSegmentData(s *State, claudeJSON map[string]any, barWidth int) *Segmen
 		added, _ := lines["added"].(float64)
 		removed, _ := lines["removed"].(float64)
 		if added > 0 || removed > 0 {
-			d.Changes = fmt.Sprintf("+%.0f/-%.0f", added, removed)
+			d.Changes = fmt.Sprintf("(+%.0f/-%.0f)", added, removed)
 		}
 	}
 

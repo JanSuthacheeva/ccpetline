@@ -110,9 +110,8 @@ type State struct {
 }
 
 func NewState() *State {
-	species := ParseSpecies(os.Getenv("CLAUDE_PET_SPECIES"))
 	return &State{
-		Species:   species,
+		Species:   LoadConfig().Species,
 		Mood:      MoodSleeping,
 		Size:      SizeTiny,
 		LastEvent: time.Now(),

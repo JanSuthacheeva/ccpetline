@@ -13,25 +13,28 @@ import (
 )
 
 var (
-	titleStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
-	selectedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
-	cursorStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
-	dimStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	boxStyle = lipgloss.NewStyle().
+	titleStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
+	accentStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
+	cursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
+	dimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("242"))
+	hintStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Italic(true)
+	valueStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("114"))
+	checkStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
+	boxStyle    = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("240")).
+			BorderForeground(lipgloss.Color("63")).
 			Padding(0, 1)
 )
 
 type section int
 
 const (
-	sectionMenu        section = iota // main menu
-	sectionSpecies                    // pet picker
-	sectionContextMode                // context mode picker
-	sectionSeparator                  // separator editor
-	sectionLinesPicker                // pick which line (1/2/3)
-	sectionLineEdit                   // segment editor for one line
+	sectionMenu        section = iota
+	sectionSpecies
+	sectionContextMode
+	sectionSeparator
+	sectionLinesPicker
+	sectionLineEdit
 )
 
 const maxLines = 3
@@ -71,29 +74,41 @@ func contextModeOptions() []contextModeOption {
 	}
 }
 
-// Menu items
 type menuItem struct {
 	label   string
+	emoji   string
 	section section
 }
 
 func menuItems() []menuItem {
 	return []menuItem{
-		{label: "Edit Lines", section: sectionLinesPicker},
-		{label: "Select Pet", section: sectionSpecies},
-		{label: "Context Mode", section: sectionContextMode},
-		{label: "Separator", section: sectionSeparator},
+		{label: "Edit Lines", emoji: "\u270f\ufe0f ", section: sectionLinesPicker},
+		{label: "Select Pet", emoji: "\U0001F43E", section: sectionSpecies},
+		{label: "Context Mode", emoji: "\U0001F4CA", section: sectionContextMode},
+		{label: "Separator", emoji: "\u2702\ufe0f ", section: sectionSeparator},
 	}
 }
 
-// editMode tracks sub-modes within the segment list editor.
+var tokenEmoji = map[string]string{
+	"pet":     "\U0001F43E",
+	"mood":    "\U0001F60A",
+	"snacks":  "\U0001F36A",
+	"bar":     "\U0001F4CA",
+	"model":   "\U0001F916",
+	"ctx":     "\U0001F4D0",
+	"cost":    "\U0001F4B0",
+	"changes": "\U0001F4DD",
+	"cwd":     "\U0001F4C2",
+	"branch":  "\U0001F33F",
+}
+
 type editMode int
 
 const (
-	modeList    editMode = iota // browsing segment list
-	modePicker                  // choosing segment type
-	modeSepEdit                 // editing separator text
-	modeCmdEdit                 // editing command text
+	modeList    editMode = iota
+	modePicker
+	modeSepEdit
+	modeCmdEdit
 )
 
 type model struct {
@@ -108,22 +123,19 @@ type model struct {
 	currentCtxMode pet.ContextMode
 	separator      string
 
-	// Segment editor state
 	lines       [maxLines][]pet.Segment
 	lineFocused int
 	segCursor   int
 	mode        editMode
 
-	// Picker sub-mode
 	pickerItems   []string
 	pickerCursor  int
-	pickerInsert  bool // true = insert before cursor, false = append or replace
-	pickerReplace bool // true = replacing existing segment
+	pickerInsert  bool
+	pickerReplace bool
 
-	// Inline text edit
-	editBuf    []rune
-	editCursor int
-	editInPlace bool // true = editing existing segment, false = creating new one
+	editBuf     []rune
+	editCursor  int
+	editInPlace bool
 
 	quitting bool
 }
@@ -179,19 +191,17 @@ func initialModel() model {
 	}
 }
 
-func (m model) Init() tea.Cmd {
-	return nil
-}
+func (m model) Init() tea.Cmd { return nil }
+
+// --- Update ---
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c":
+		if msg.String() == "ctrl+c" {
 			m.quitting = true
 			return m, tea.Quit
 		}
-
 		switch m.section {
 		case sectionMenu:
 			return m.updateMenu(msg)
@@ -207,7 +217,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateLineEdit(msg)
 		}
 	}
-
 	return m, nil
 }
 
@@ -227,7 +236,6 @@ func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "enter":
 		if m.menuCursor == len(items) {
-			// Exit
 			m.quitting = true
 			return m, tea.Quit
 		}
@@ -381,17 +389,17 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.segCursor < len(segs)-1 {
 			m.segCursor++
 		}
-	case "a": // append
+	case "a":
 		m.mode = modePicker
 		m.pickerCursor = 0
 		m.pickerInsert = false
 		m.pickerReplace = false
-	case "i": // insert before cursor
+	case "i":
 		m.mode = modePicker
 		m.pickerCursor = 0
 		m.pickerInsert = true
 		m.pickerReplace = false
-	case "d": // delete
+	case "d":
 		if len(segs) > 0 {
 			newSegs := make([]pet.Segment, 0, len(segs)-1)
 			newSegs = append(newSegs, segs[:m.segCursor]...)
@@ -400,18 +408,18 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.clampSegCursor()
 			m.save()
 		}
-	case "c": // clear line
+	case "c":
 		m.lines[m.lineFocused] = nil
 		m.segCursor = 0
 		m.save()
-	case " ": // space: edit separator inline
+	case " ":
 		if len(segs) > 0 && segs[m.segCursor].Kind == pet.KindSeparator {
 			m.mode = modeSepEdit
 			m.editBuf = []rune(segs[m.segCursor].Value)
 			m.editCursor = len(m.editBuf)
 			m.editInPlace = true
 		}
-	case "enter", "left", "right": // change segment type
+	case "enter", "left", "right":
 		if len(segs) > 0 {
 			m.mode = modePicker
 			m.pickerCursor = 0
@@ -448,7 +456,6 @@ func (m model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.editCursor = 0
 			m.editInPlace = false
 		default:
-			// Token
 			seg := pet.Segment{Kind: pet.KindToken, Value: item}
 			m.applySegment(seg)
 			m.mode = modeList
@@ -515,7 +522,6 @@ func (m model) updateTextEdit(msg tea.KeyMsg, isCmd bool) (tea.Model, tea.Cmd) {
 			m.editCursor++
 		}
 	default:
-		// Insert printable characters
 		for _, r := range msg.String() {
 			if unicode.IsPrint(r) {
 				newBuf := make([]rune, len(m.editBuf)+1)
@@ -551,13 +557,13 @@ func (m *model) save() {
 	}
 }
 
+// --- Views ---
+
 func (m model) View() string {
 	if m.quitting {
 		return ""
 	}
-
 	var b strings.Builder
-
 	switch m.section {
 	case sectionMenu:
 		m.viewMenu(&b)
@@ -572,149 +578,140 @@ func (m model) View() string {
 	case sectionLineEdit:
 		m.viewLineEdit(&b)
 	}
-
 	b.WriteString("\n")
 	return b.String()
 }
 
+const emojiCol = 3 // fixed visual width for emoji column
+
+// padEmoji pads an emoji string to emojiCol visual width using spaces.
+func padEmoji(emoji string) string {
+	w := lipgloss.Width(emoji)
+	if w >= emojiCol {
+		return emoji
+	}
+	return emoji + strings.Repeat(" ", emojiCol-w)
+}
+
+func row(b *strings.Builder, selected bool, emoji, text string) {
+	icon := padEmoji(emoji)
+	if selected {
+		b.WriteString(fmt.Sprintf("  %s %s%s\n", cursorStyle.Render("\u25b8"), icon, accentStyle.Render(text)))
+	} else {
+		b.WriteString(fmt.Sprintf("    %s%s\n", icon, text))
+	}
+}
+
+func header(b *strings.Builder, emoji, title string) {
+	b.WriteString(fmt.Sprintf("\n  %s%s\n", padEmoji(emoji), titleStyle.Render(title)))
+}
+
+func nav(b *strings.Builder, hint string) {
+	b.WriteString(hintStyle.Render("      " + hint))
+	b.WriteString("\n")
+}
+
 func (m model) viewMenu(b *strings.Builder) {
-	b.WriteString(titleStyle.Render("Claude Pet Config"))
-	b.WriteString("\n\n")
+	header(b, "\U0001F9F8", "Claude Pet Config")
+	b.WriteString("\n")
 
 	items := menuItems()
 	for i, item := range items {
-		cursor := "  "
-		if i == m.menuCursor {
-			cursor = cursorStyle.Render("> ")
-		}
-
-		label := item.label
+		detail := ""
 		switch item.section {
 		case sectionSpecies:
-			label += fmt.Sprintf(" (%s)", m.current)
+			detail = string(m.current)
 		case sectionContextMode:
 			for _, o := range m.ctxOptions {
 				if o.mode == m.currentCtxMode {
-					label += fmt.Sprintf(" (%s)", o.label)
+					detail = o.label
 					break
 				}
 			}
 		case sectionSeparator:
-			label += fmt.Sprintf(" (%q)", m.separator)
+			detail = fmt.Sprintf("%q", strings.TrimSpace(m.separator))
 		}
-
-		if i == m.menuCursor {
-			b.WriteString(fmt.Sprintf("%s%s\n", cursor, selectedStyle.Render(label)))
-		} else {
-			b.WriteString(fmt.Sprintf("%s%s\n", cursor, dimStyle.Render(label)))
+		text := item.label
+		if detail != "" {
+			if i == m.menuCursor {
+				text += " " + valueStyle.Render(detail)
+			} else {
+				text += " " + dimStyle.Render(detail)
+			}
 		}
+		row(b, i == m.menuCursor, item.emoji, text)
 	}
 
-	// Exit item
-	cursor := "  "
-	if m.menuCursor == len(items) {
-		cursor = cursorStyle.Render("> ")
-		b.WriteString(fmt.Sprintf("%s%s\n", cursor, selectedStyle.Render("Exit")))
-	} else {
-		b.WriteString(fmt.Sprintf("%s%s\n", cursor, dimStyle.Render("Exit")))
-	}
+	row(b, m.menuCursor == len(items), "\U0001F44B", "Exit")
 }
 
 func (m model) viewSpecies(b *strings.Builder) {
-	b.WriteString(titleStyle.Render("Select Pet"))
-	b.WriteString("  ")
-	b.WriteString(dimStyle.Render("esc: back"))
-	b.WriteString("\n\n")
+	header(b, "\U0001F43E", "Select Pet")
+	nav(b, "esc back \u00b7 enter select")
+	b.WriteString("\n")
 
 	for i, opt := range m.options {
-		cursor := "  "
-		if i == m.cursor {
-			cursor = cursorStyle.Render("> ")
-		}
-
-		name := opt.label
+		check := " "
 		if opt.species == m.current {
-			name += " (current)"
+			check = checkStyle.Render("\u2713")
 		}
-
-		if i == m.cursor {
-			b.WriteString(fmt.Sprintf("%s%s  %s\n", cursor, selectedStyle.Render(name), opt.preview))
-		} else {
-			b.WriteString(fmt.Sprintf("%s%s  %s\n", cursor, dimStyle.Render(name), dimStyle.Render(opt.preview)))
+		// Use first emoji of the species as the row icon
+		icon := pet.SizeEmoji(opt.species, pet.SizeNormal)
+		text := fmt.Sprintf("%s %s  %s", check, opt.label, opt.preview)
+		if i != m.cursor {
+			text = fmt.Sprintf("%s %s  %s", check, dimStyle.Render(opt.label), dimStyle.Render(opt.preview))
 		}
+		row(b, i == m.cursor, icon, text)
 	}
 }
 
 func (m model) viewContextMode(b *strings.Builder) {
-	b.WriteString(titleStyle.Render("Context Mode"))
-	b.WriteString("  ")
-	b.WriteString(dimStyle.Render("esc: back"))
-	b.WriteString("\n\n")
+	header(b, "\U0001F4CA", "Context Mode")
+	nav(b, "esc back \u00b7 enter select")
+	b.WriteString("\n")
 
 	for i, opt := range m.ctxOptions {
-		cursor := "  "
-		if i == m.ctxCursor {
-			cursor = cursorStyle.Render("> ")
-		}
-
-		name := opt.label
+		check := " "
 		if opt.mode == m.currentCtxMode {
-			name += " (current)"
+			check = checkStyle.Render("\u2713")
 		}
-		detail := fmt.Sprintf("%s -- %s", name, opt.desc)
-
-		if i == m.ctxCursor {
-			b.WriteString(fmt.Sprintf("%s%s\n", cursor, selectedStyle.Render(detail)))
-		} else {
-			b.WriteString(fmt.Sprintf("%s%s\n", cursor, dimStyle.Render(detail)))
-		}
+		text := fmt.Sprintf("%s %s \u2014 %s", check, opt.label, opt.desc)
+		row(b, i == m.ctxCursor, "\U0001F4CA", text)
 	}
 }
 
 func (m model) viewSeparator(b *strings.Builder) {
-	b.WriteString(titleStyle.Render("Separator"))
-	b.WriteString("  ")
-	b.WriteString(dimStyle.Render("esc: back  enter: save"))
+	header(b, "\u2702\ufe0f ", "Separator")
+	nav(b, "esc back \u00b7 enter save \u00b7 max 3 chars")
 	b.WriteString("\n")
-	b.WriteString(dimStyle.Render("max 3 chars, spaces added automatically"))
-	b.WriteString("\n\n")
-	b.WriteString(fmt.Sprintf("   %s", selectedStyle.Render(string(m.editBuf))))
-	b.WriteString(cursorStyle.Render("_"))
-	b.WriteString("\n")
-	b.WriteString(dimStyle.Render(fmt.Sprintf("   preview: {a}%s{b}", " "+strings.TrimSpace(string(m.editBuf))+" ")))
-	b.WriteString("\n")
+	b.WriteString(fmt.Sprintf("      %s%s\n",
+		accentStyle.Render(string(m.editBuf)),
+		cursorStyle.Render("\u2588")))
+	preview := " " + strings.TrimSpace(string(m.editBuf)) + " "
+	b.WriteString(fmt.Sprintf("      %s %s\n",
+		dimStyle.Render("preview:"),
+		valueStyle.Render(fmt.Sprintf("{a}%s{b}", preview))))
 }
 
 func (m model) viewLinesPicker(b *strings.Builder) {
-	b.WriteString(titleStyle.Render("Edit Lines"))
-	b.WriteString("  ")
-	b.WriteString(dimStyle.Render("esc: back"))
-	b.WriteString("\n\n")
+	header(b, "\u270f\ufe0f ", "Edit Lines")
+	nav(b, "esc back \u00b7 enter edit")
+	b.WriteString("\n")
 
+	lineEmojis := [maxLines]string{"\u0031\ufe0f\u20e3", "\u0032\ufe0f\u20e3", "\u0033\ufe0f\u20e3"}
 	sample := pet.SampleSegmentData(m.current, pet.SizeNormal)
 	for i := 0; i < maxLines; i++ {
-		cursor := "  "
-		if i == m.lineFocused {
-			cursor = cursorStyle.Render("> ")
-		}
-
-		label := "(empty)"
+		preview := dimStyle.Render("(empty)")
 		if len(m.lines[i]) > 0 {
 			tmpl := pet.SegmentsToTemplate(m.lines[i], m.separator)
-			label = pet.RenderTemplate(tmpl, sample)
+			preview = valueStyle.Render(pet.RenderTemplate(tmpl, sample))
 		}
-
-		line := fmt.Sprintf("Line %d: %s", i+1, label)
-		if i == m.lineFocused {
-			b.WriteString(fmt.Sprintf("%s%s\n", cursor, selectedStyle.Render(line)))
-		} else {
-			b.WriteString(fmt.Sprintf("%s%s\n", cursor, dimStyle.Render(line)))
-		}
+		row(b, i == m.lineFocused, lineEmojis[i], preview)
 	}
 }
 
 func (m model) viewLineEdit(b *strings.Builder) {
-	// Live preview box
+	// Preview box
 	sample := pet.SampleSegmentData(m.current, pet.SizeNormal)
 	var previewLines []string
 	for i := 0; i < maxLines; i++ {
@@ -731,32 +728,26 @@ func (m model) viewLineEdit(b *strings.Builder) {
 	if previewContent == "" {
 		previewContent = dimStyle.Render("  (empty)")
 	}
-	header := "> Preview"
-	b.WriteString(boxStyle.Render(header + "\n" + previewContent))
-	b.WriteString("\n\n")
-
-	// Line header
-	b.WriteString(titleStyle.Render(fmt.Sprintf("Edit Line %d", m.lineFocused+1)))
-	b.WriteString("  ")
-	b.WriteString(dimStyle.Render("esc: back"))
+	b.WriteString("\n")
+	b.WriteString(boxStyle.Render("\U0001F441  Preview\n" + previewContent))
 	b.WriteString("\n")
 
-	// Key hints
+	header(b, "\u270f\ufe0f ", fmt.Sprintf("Line %d", m.lineFocused+1))
+
+	// Key hints per mode
 	switch m.mode {
 	case modeList:
-		b.WriteString(dimStyle.Render("up/down select  left/right change type  space edit sep"))
-		b.WriteString("\n")
-		b.WriteString(dimStyle.Render("(a)dd  (i)nsert  (d)elete  (c)lear"))
+		nav(b, "esc back \u00b7 \u2191\u2193 select \u00b7 \u2190\u2192 change type \u00b7 space edit sep")
+		nav(b, "(a)dd \u00b7 (i)nsert \u00b7 (d)elete \u00b7 (c)lear")
 	case modePicker:
-		b.WriteString(dimStyle.Render("up/down select  enter choose  esc back"))
+		nav(b, "esc back \u00b7 \u2191\u2193 select \u00b7 enter choose")
 	case modeSepEdit:
-		b.WriteString(dimStyle.Render("type separator text  enter confirm  esc cancel"))
+		nav(b, "esc cancel \u00b7 enter confirm \u00b7 type separator text")
 	case modeCmdEdit:
-		b.WriteString(dimStyle.Render("type shell command  enter confirm  esc cancel"))
+		nav(b, "esc cancel \u00b7 enter confirm \u00b7 type shell command")
 	}
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 
-	// Segment list or picker overlay
 	if m.mode == modePicker {
 		m.viewPicker(b)
 	} else if m.mode == modeSepEdit || m.mode == modeCmdEdit {
@@ -769,35 +760,30 @@ func (m model) viewLineEdit(b *strings.Builder) {
 func (m model) viewSegmentList(b *strings.Builder) {
 	segs := m.lines[m.lineFocused]
 	if len(segs) == 0 {
-		b.WriteString(dimStyle.Render("   (empty -- press 'a' to add)"))
+		b.WriteString(dimStyle.Render("      (empty \u2014 press 'a' to add)"))
 		b.WriteString("\n")
 		return
 	}
 	for i, seg := range segs {
-		prefix := "   "
-		if i == m.segCursor {
-			prefix = cursorStyle.Render(" > ")
-		}
-		label := segmentLabel(seg)
-		num := fmt.Sprintf("%d. ", i+1)
-		if i == m.segCursor {
-			b.WriteString(fmt.Sprintf("%s%s%s\n", prefix, num, selectedStyle.Render(label)))
-		} else {
-			b.WriteString(fmt.Sprintf("%s%s%s\n", prefix, dimStyle.Render(num), label))
-		}
+		emoji, label := segmentParts(seg)
+		row(b, i == m.segCursor, emoji, label)
 	}
 }
 
-func segmentLabel(seg pet.Segment) string {
+func segmentParts(seg pet.Segment) (emoji, label string) {
 	switch seg.Kind {
 	case pet.KindToken:
-		return capitalize(seg.Value)
+		emoji = tokenEmoji[seg.Value]
+		if emoji == "" {
+			emoji = " "
+		}
+		return emoji, capitalize(seg.Value)
 	case pet.KindSeparator:
-		return fmt.Sprintf("Separator %q", seg.Value)
+		return "\u2502", fmt.Sprintf("Separator %q", seg.Value)
 	case pet.KindCommand:
-		return fmt.Sprintf("Command %q", seg.Value)
+		return "\u26a1", fmt.Sprintf("Command %q", seg.Value)
 	default:
-		return seg.Value
+		return " ", seg.Value
 	}
 }
 
@@ -812,28 +798,32 @@ func capitalize(s string) string {
 
 func (m model) viewPicker(b *strings.Builder) {
 	for i, item := range m.pickerItems {
-		prefix := "   "
-		if i == m.pickerCursor {
-			prefix = cursorStyle.Render(" > ")
+		emoji := tokenEmoji[item]
+		switch item {
+		case "Separator":
+			emoji = "\u2502"
+		case "Command":
+			emoji = "\u26a1"
 		}
-		label := capitalize(item)
-		if i == m.pickerCursor {
-			b.WriteString(fmt.Sprintf("%s%s\n", prefix, selectedStyle.Render(label)))
-		} else {
-			b.WriteString(fmt.Sprintf("%s%s\n", prefix, label))
+		if emoji == "" {
+			emoji = " "
 		}
+		row(b, i == m.pickerCursor, emoji, capitalize(item))
 	}
 }
 
 func (m model) viewTextEdit(b *strings.Builder) {
+	emoji := "\u2502"
 	label := "Separator"
 	if m.mode == modeCmdEdit {
+		emoji = "\u26a1"
 		label = "Command"
 	}
 	text := string(m.editBuf)
-	b.WriteString(fmt.Sprintf("   %s: %s", label, selectedStyle.Render(text)))
-	b.WriteString(cursorStyle.Render("_"))
-	b.WriteString("\n")
+	b.WriteString(fmt.Sprintf("    %s%s: %s%s\n",
+		padEmoji(emoji), label,
+		accentStyle.Render(text),
+		cursorStyle.Render("\u2588")))
 }
 
 func main() {

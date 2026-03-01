@@ -12,9 +12,13 @@ var DefaultLines = []string{
 	"{bar}",
 }
 
+// DefaultSeparator is the default token separator.
+const DefaultSeparator = " | "
+
 type Config struct {
 	Species     Species     `json:"species"`
 	ContextMode ContextMode `json:"context_mode"`
+	Separator   string      `json:"separator"`
 	Lines       []string    `json:"lines,omitempty"`
 
 	// Deprecated fields kept for migration only.
@@ -35,6 +39,7 @@ func defaultConfig() *Config {
 	return &Config{
 		Species:     SpeciesGoose,
 		ContextMode: ContextModeCtx,
+		Separator:   DefaultSeparator,
 		Lines:       DefaultLines,
 	}
 }
@@ -57,6 +62,9 @@ func LoadConfig() *Config {
 	}
 	if c.ContextMode == "" {
 		c.ContextMode = ContextModeCtx
+	}
+	if c.Separator == "" {
+		c.Separator = DefaultSeparator
 	}
 	migrateConfig(&c)
 	return &c

@@ -29,6 +29,7 @@ const (
 	sectionMenu        section = iota // main menu
 	sectionSpecies                    // pet picker
 	sectionContextMode                // context mode picker
+	sectionSeparator                  // separator editor
 	sectionLinesPicker                // pick which line (1/2/3)
 	sectionLineEdit                   // segment editor for one line
 )
@@ -81,6 +82,7 @@ func menuItems() []menuItem {
 		{label: "Edit Lines", section: sectionLinesPicker},
 		{label: "Select Pet", section: sectionSpecies},
 		{label: "Context Mode", section: sectionContextMode},
+		{label: "Separator", section: sectionSeparator},
 	}
 }
 
@@ -104,6 +106,7 @@ type model struct {
 
 	current        pet.Species
 	currentCtxMode pet.ContextMode
+	separator      string
 
 	// Segment editor state
 	lines       [maxLines][]pet.Segment
@@ -170,6 +173,7 @@ func initialModel() model {
 		ctxCursor:      ctxCursor,
 		current:        cfg.Species,
 		currentCtxMode: cfg.ContextMode,
+		separator:      cfg.Separator,
 		lines:          lines,
 		pickerItems:    buildPickerItems(),
 	}
@@ -195,6 +199,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateSpecies(msg)
 		case sectionContextMode:
 			return m.updateContextMode(msg)
+		case sectionSeparator:
+			return m.updateSeparator(msg)
 		case sectionLinesPicker:
 			return m.updateLinesPicker(msg)
 		case sectionLineEdit:
@@ -225,7 +231,12 @@ func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 		}
-		m.section = items[m.menuCursor].section
+		dest := items[m.menuCursor].section
+		if dest == sectionSeparator {
+			m.editBuf = []rune(strings.TrimSpace(m.separator))
+			m.editCursor = len(m.editBuf)
+		}
+		m.section = dest
 	}
 	return m, nil
 }
@@ -266,6 +277,46 @@ func (m model) updateContextMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.currentCtxMode = m.ctxOptions[m.ctxCursor].mode
 		m.save()
 		m.section = sectionMenu
+	}
+	return m, nil
+}
+
+func (m model) updateSeparator(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.section = sectionMenu
+	case "enter":
+		sep := strings.TrimSpace(string(m.editBuf))
+		if sep == "" {
+			sep = "|"
+		}
+		m.separator = " " + sep + " "
+		m.save()
+		m.section = sectionMenu
+	case "backspace":
+		if len(m.editBuf) > 0 && m.editCursor > 0 {
+			m.editBuf = append(m.editBuf[:m.editCursor-1], m.editBuf[m.editCursor:]...)
+			m.editCursor--
+		}
+	case "left":
+		if m.editCursor > 0 {
+			m.editCursor--
+		}
+	case "right":
+		if m.editCursor < len(m.editBuf) {
+			m.editCursor++
+		}
+	default:
+		for _, r := range msg.String() {
+			if unicode.IsPrint(r) && len(m.editBuf) < 3 {
+				newBuf := make([]rune, len(m.editBuf)+1)
+				copy(newBuf, m.editBuf[:m.editCursor])
+				newBuf[m.editCursor] = r
+				copy(newBuf[m.editCursor+1:], m.editBuf[m.editCursor:])
+				m.editBuf = newBuf
+				m.editCursor++
+			}
+		}
 	}
 	return m, nil
 }
@@ -483,7 +534,7 @@ func (m *model) save() {
 	var lines []string
 	for i := 0; i < maxLines; i++ {
 		if len(m.lines[i]) > 0 {
-			lines = append(lines, pet.SegmentsToTemplate(m.lines[i]))
+			lines = append(lines, pet.SegmentsToTemplate(m.lines[i], m.separator))
 		}
 	}
 	if len(lines) == 0 {
@@ -492,6 +543,7 @@ func (m *model) save() {
 	cfg := &pet.Config{
 		Species:     m.current,
 		ContextMode: m.currentCtxMode,
+		Separator:   m.separator,
 		Lines:       lines,
 	}
 	if err := pet.SaveConfig(cfg); err != nil {
@@ -513,6 +565,8 @@ func (m model) View() string {
 		m.viewSpecies(&b)
 	case sectionContextMode:
 		m.viewContextMode(&b)
+	case sectionSeparator:
+		m.viewSeparator(&b)
 	case sectionLinesPicker:
 		m.viewLinesPicker(&b)
 	case sectionLineEdit:
@@ -545,6 +599,8 @@ func (m model) viewMenu(b *strings.Builder) {
 					break
 				}
 			}
+		case sectionSeparator:
+			label += fmt.Sprintf(" (%q)", m.separator)
 		}
 
 		if i == m.menuCursor {
@@ -615,6 +671,20 @@ func (m model) viewContextMode(b *strings.Builder) {
 	}
 }
 
+func (m model) viewSeparator(b *strings.Builder) {
+	b.WriteString(titleStyle.Render("Separator"))
+	b.WriteString("  ")
+	b.WriteString(dimStyle.Render("esc: back  enter: save"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("max 3 chars, spaces added automatically"))
+	b.WriteString("\n\n")
+	b.WriteString(fmt.Sprintf("   %s", selectedStyle.Render(string(m.editBuf))))
+	b.WriteString(cursorStyle.Render("_"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render(fmt.Sprintf("   preview: {a}%s{b}", " "+strings.TrimSpace(string(m.editBuf))+" ")))
+	b.WriteString("\n")
+}
+
 func (m model) viewLinesPicker(b *strings.Builder) {
 	b.WriteString(titleStyle.Render("Edit Lines"))
 	b.WriteString("  ")
@@ -630,7 +700,7 @@ func (m model) viewLinesPicker(b *strings.Builder) {
 
 		label := "(empty)"
 		if len(m.lines[i]) > 0 {
-			tmpl := pet.SegmentsToTemplate(m.lines[i])
+			tmpl := pet.SegmentsToTemplate(m.lines[i], m.separator)
 			label = pet.RenderTemplate(tmpl, sample)
 		}
 
@@ -651,7 +721,7 @@ func (m model) viewLineEdit(b *strings.Builder) {
 		if len(m.lines[i]) == 0 {
 			continue
 		}
-		tmpl := pet.SegmentsToTemplate(m.lines[i])
+		tmpl := pet.SegmentsToTemplate(m.lines[i], m.separator)
 		rendered := pet.RenderTemplate(tmpl, sample)
 		if rendered != "" {
 			previewLines = append(previewLines, "  "+rendered)

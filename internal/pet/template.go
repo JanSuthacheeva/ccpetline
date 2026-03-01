@@ -47,9 +47,13 @@ func SampleSegmentData(species Species, size Size) *SegmentData {
 }
 
 // SegmentsToTemplate serializes segments into a template string.
-func SegmentsToTemplate(segs []Segment) string {
+func SegmentsToTemplate(segs []Segment, separator string) string {
 	var b strings.Builder
-	for _, seg := range segs {
+	for i, seg := range segs {
+		// Insert separator between adjacent non-separator segments.
+		if i > 0 && seg.Kind != KindSeparator && segs[i-1].Kind != KindSeparator {
+			b.WriteString(separator)
+		}
 		switch seg.Kind {
 		case KindToken:
 			b.WriteString("{" + seg.Value + "}")

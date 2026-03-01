@@ -19,6 +19,27 @@ func StatePath(sessionID string) string {
 	return filepath.Join(stateDir, fmt.Sprintf("claude-pet-state-%s.json", sessionID))
 }
 
+type Species string
+
+const (
+	SpeciesGoose  Species = "goose"
+	SpeciesCat    Species = "cat"
+	SpeciesOcean  Species = "ocean"
+	SpeciesDragon Species = "dragon"
+	SpeciesDino   Species = "dino"
+)
+
+var AllSpecies = []Species{SpeciesGoose, SpeciesCat, SpeciesOcean, SpeciesDragon, SpeciesDino}
+
+func ParseSpecies(s string) Species {
+	switch Species(s) {
+	case SpeciesGoose, SpeciesCat, SpeciesOcean, SpeciesDragon, SpeciesDino:
+		return Species(s)
+	default:
+		return SpeciesGoose
+	}
+}
+
 type Mood int
 
 const (
@@ -78,6 +99,7 @@ func SizeFromContext(pct float64) Size {
 }
 
 type State struct {
+	Species    Species   `json:"species"`
 	Mood       Mood      `json:"mood"`
 	Size       Size      `json:"size"`
 	ContextPct float64   `json:"context_pct"`
@@ -88,7 +110,9 @@ type State struct {
 }
 
 func NewState() *State {
+	species := ParseSpecies(os.Getenv("CLAUDE_PET_SPECIES"))
 	return &State{
+		Species:   species,
 		Mood:      MoodSleeping,
 		Size:      SizeTiny,
 		LastEvent: time.Now(),

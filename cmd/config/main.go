@@ -107,7 +107,6 @@ type editMode int
 const (
 	modeList    editMode = iota
 	modePicker
-	modeSepEdit
 	modeCmdEdit
 )
 
@@ -355,10 +354,8 @@ func (m model) updateLineEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updateList(msg)
 	case modePicker:
 		return m.updatePicker(msg)
-	case modeSepEdit:
-		return m.updateTextEdit(msg, false)
 	case modeCmdEdit:
-		return m.updateTextEdit(msg, true)
+		return m.updateTextEdit(msg)
 	}
 	return m, nil
 }
@@ -412,13 +409,6 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.lines[m.lineFocused] = nil
 		m.segCursor = 0
 		m.save()
-	case " ":
-		if len(segs) > 0 && segs[m.segCursor].Kind == pet.KindSeparator {
-			m.mode = modeSepEdit
-			m.editBuf = []rune(segs[m.segCursor].Value)
-			m.editCursor = len(m.editBuf)
-			m.editInPlace = true
-		}
 	case "enter", "left", "right":
 		if len(segs) > 0 {
 			m.mode = modePicker
@@ -446,10 +436,10 @@ func (m model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		item := m.pickerItems[m.pickerCursor]
 		switch item {
 		case "Separator":
-			m.mode = modeSepEdit
-			m.editBuf = []rune(" | ")
-			m.editCursor = len(m.editBuf)
-			m.editInPlace = false
+			seg := pet.Segment{Kind: pet.KindSeparator}
+			m.applySegment(seg)
+			m.mode = modeList
+			m.save()
 		case "Command":
 			m.mode = modeCmdEdit
 			m.editBuf = nil
@@ -484,20 +474,13 @@ func (m *model) applySegment(seg pet.Segment) {
 	}
 }
 
-func (m model) updateTextEdit(msg tea.KeyMsg, isCmd bool) (tea.Model, tea.Cmd) {
+func (m model) updateTextEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.mode = modeList
 	case "enter":
 		text := string(m.editBuf)
-		if text == "" && !isCmd {
-			text = " "
-		}
-		kind := pet.KindSeparator
-		if isCmd {
-			kind = pet.KindCommand
-		}
-		seg := pet.Segment{Kind: kind, Value: text}
+		seg := pet.Segment{Kind: pet.KindCommand, Value: text}
 		if m.editInPlace {
 			segs := m.lines[m.lineFocused]
 			if len(segs) > 0 && m.segCursor < len(segs) {
@@ -737,12 +720,10 @@ func (m model) viewLineEdit(b *strings.Builder) {
 	// Key hints per mode
 	switch m.mode {
 	case modeList:
-		nav(b, "esc back \u00b7 \u2191\u2193 select \u00b7 \u2190\u2192 change type \u00b7 space edit sep")
+		nav(b, "esc back \u00b7 \u2191\u2193 select \u00b7 \u2190\u2192 change type")
 		nav(b, "(a)dd \u00b7 (i)nsert \u00b7 (d)elete \u00b7 (c)lear")
 	case modePicker:
 		nav(b, "esc back \u00b7 \u2191\u2193 select \u00b7 enter choose")
-	case modeSepEdit:
-		nav(b, "esc cancel \u00b7 enter confirm \u00b7 type separator text")
 	case modeCmdEdit:
 		nav(b, "esc cancel \u00b7 enter confirm \u00b7 type shell command")
 	}
@@ -750,7 +731,7 @@ func (m model) viewLineEdit(b *strings.Builder) {
 
 	if m.mode == modePicker {
 		m.viewPicker(b)
-	} else if m.mode == modeSepEdit || m.mode == modeCmdEdit {
+	} else if m.mode == modeCmdEdit {
 		m.viewTextEdit(b)
 	} else {
 		m.viewSegmentList(b)
@@ -779,7 +760,7 @@ func segmentParts(seg pet.Segment) (emoji, label string) {
 		}
 		return emoji, capitalize(seg.Value)
 	case pet.KindSeparator:
-		return "\u2502", fmt.Sprintf("Separator %q", seg.Value)
+		return "\u2502", "Separator"
 	case pet.KindCommand:
 		return "\u26a1", fmt.Sprintf("Command %q", seg.Value)
 	default:
@@ -813,15 +794,9 @@ func (m model) viewPicker(b *strings.Builder) {
 }
 
 func (m model) viewTextEdit(b *strings.Builder) {
-	emoji := "\u2502"
-	label := "Separator"
-	if m.mode == modeCmdEdit {
-		emoji = "\u26a1"
-		label = "Command"
-	}
 	text := string(m.editBuf)
 	b.WriteString(fmt.Sprintf("    %s%s: %s%s\n",
-		padEmoji(emoji), label,
+		padEmoji("\u26a1"), "Command",
 		accentStyle.Render(text),
 		cursorStyle.Render("\u2588")))
 }

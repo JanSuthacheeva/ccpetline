@@ -47,18 +47,20 @@ func SampleSegmentData(species Species, size Size) *SegmentData {
 }
 
 // SegmentsToTemplate serializes segments into a template string.
+// Adjacent non-separator segments get a space between them.
+// KindSeparator segments render as the configured separator.
 func SegmentsToTemplate(segs []Segment, separator string) string {
 	var b strings.Builder
 	for i, seg := range segs {
-		// Insert separator between adjacent non-separator segments.
+		// Auto-space between adjacent non-separator segments.
 		if i > 0 && seg.Kind != KindSeparator && segs[i-1].Kind != KindSeparator {
-			b.WriteString(separator)
+			b.WriteByte(' ')
 		}
 		switch seg.Kind {
 		case KindToken:
 			b.WriteString("{" + seg.Value + "}")
 		case KindSeparator:
-			b.WriteString(seg.Value)
+			b.WriteString(separator)
 		case KindCommand:
 			b.WriteString("[cmd: " + seg.Value + "]")
 		}
@@ -87,9 +89,13 @@ func TemplateToSegments(tmpl string) []Segment {
 	var segs []Segment
 	last := 0
 	for _, loc := range segRe.FindAllStringSubmatchIndex(tmpl, -1) {
-		// literal text before this match
+		// literal text before this match — skip whitespace-only gaps
+		// (adjacent tokens get auto-spaced)
 		if loc[0] > last {
-			segs = append(segs, Segment{Kind: KindSeparator, Value: tmpl[last:loc[0]]})
+			lit := tmpl[last:loc[0]]
+			if strings.TrimSpace(lit) != "" {
+				segs = append(segs, Segment{Kind: KindSeparator, Value: lit})
+			}
 		}
 		full := tmpl[loc[0]:loc[1]]
 		if full[0] == '{' {
@@ -103,7 +109,10 @@ func TemplateToSegments(tmpl string) []Segment {
 	}
 	// trailing literal
 	if last < len(tmpl) {
-		segs = append(segs, Segment{Kind: KindSeparator, Value: tmpl[last:]})
+		lit := tmpl[last:]
+		if strings.TrimSpace(lit) != "" {
+			segs = append(segs, Segment{Kind: KindSeparator, Value: lit})
+		}
 	}
 	return segs
 }

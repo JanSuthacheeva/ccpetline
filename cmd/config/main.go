@@ -41,6 +41,7 @@ const (
 	sectionDisplayMode
 	sectionWrapCommandPicker
 	sectionWrapCommandEdit
+	sectionColorPicker
 )
 
 const maxLines = 3
@@ -112,6 +113,58 @@ var tokenEmoji = map[string]string{
 	"branch":  "\U0001F33F",
 }
 
+// colorPalette is the curated set of ANSI 256 colors available in the picker.
+var colorPalette = []uint8{
+	0, 196, 208, 220, 226,
+	118, 49, 51, 45, 39,
+	63, 99, 141, 177,
+	212, 255, 245,
+}
+
+const colorsPerRow = 6
+
+// colorLabel returns a human-readable name for a palette color.
+func colorLabel(c uint8) string {
+	switch c {
+	case 0:
+		return "none"
+	case 196:
+		return "red"
+	case 208:
+		return "orange"
+	case 220:
+		return "gold"
+	case 226:
+		return "yellow"
+	case 118:
+		return "green"
+	case 49:
+		return "emerald"
+	case 51:
+		return "cyan"
+	case 45:
+		return "sky"
+	case 39:
+		return "blue"
+	case 63:
+		return "indigo"
+	case 99:
+		return "purple"
+	case 141:
+		return "lavender"
+	case 177:
+		return "orchid"
+	case 212:
+		return "pink"
+	case 255:
+		return "white"
+	case 245:
+		return "gray"
+	default:
+		return fmt.Sprintf("%d", c)
+	}
+}
+
 type editMode int
 
 const (
@@ -133,8 +186,10 @@ type model struct {
 	separator      string
 
 	lines       [maxLines][]pet.Segment
+	lineColors  [maxLines][]uint8
 	lineFocused int
 	segCursor   int
+	colorCursor int
 	mode        editMode
 
 	pickerItems   []string
@@ -186,11 +241,19 @@ func initialModel() model {
 	}
 
 	var lines [maxLines][]pet.Segment
+	var lineColors [maxLines][]uint8
 	for i, tmpl := range cfg.Lines {
 		if i >= maxLines {
 			break
 		}
 		lines[i] = pet.TemplateToSegments(tmpl)
+	}
+	for i, colors := range cfg.LineColors {
+		if i >= maxLines {
+			break
+		}
+		lineColors[i] = make([]uint8, len(colors))
+		copy(lineColors[i], colors)
 	}
 
 	displayCursor := 0
@@ -211,6 +274,7 @@ func initialModel() model {
 		currentCtxMode: cfg.ContextMode,
 		separator:      cfg.Separator,
 		lines:          lines,
+		lineColors:     lineColors,
 		pickerItems:    buildPickerItems(),
 		displayMode:    cfg.DisplayMode,
 		displayCursor:  displayCursor,
@@ -250,6 +314,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateWrapCommandPicker(msg)
 		case sectionWrapCommandEdit:
 			return m.updateWrapCommandEdit(msg)
+		case sectionColorPicker:
+			return m.updateColorPicker(msg)
 		}
 	}
 	return m, nil
@@ -620,6 +686,22 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.segCursor < len(segs)-1 {
 			m.segCursor++
 		}
+	case "f":
+		if len(segs) > 0 {
+			// Find current color index in palette.
+			m.colorCursor = 0
+			colors := m.lineColors[m.lineFocused]
+			if m.segCursor < len(colors) {
+				cur := colors[m.segCursor]
+				for i, c := range colorPalette {
+					if c == cur {
+						m.colorCursor = i
+						break
+					}
+				}
+			}
+			m.section = sectionColorPicker
+		}
 	case "a":
 		m.mode = modePicker
 		m.pickerCursor = 0
@@ -636,11 +718,20 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			newSegs = append(newSegs, segs[:m.segCursor]...)
 			newSegs = append(newSegs, segs[m.segCursor+1:]...)
 			m.lines[m.lineFocused] = newSegs
+			// Remove color at index too.
+			colors := m.lineColors[m.lineFocused]
+			if m.segCursor < len(colors) {
+				newColors := make([]uint8, 0, len(colors)-1)
+				newColors = append(newColors, colors[:m.segCursor]...)
+				newColors = append(newColors, colors[m.segCursor+1:]...)
+				m.lineColors[m.lineFocused] = newColors
+			}
 			m.clampSegCursor()
 			m.save()
 		}
 	case "c":
 		m.lines[m.lineFocused] = nil
+		m.lineColors[m.lineFocused] = nil
 		m.segCursor = 0
 		m.save()
 	case "enter", "left", "right":
@@ -691,10 +782,12 @@ func (m model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *model) applySegment(seg pet.Segment) {
 	segs := m.lines[m.lineFocused]
+	colors := m.lineColors[m.lineFocused]
 	if m.pickerReplace {
 		if len(segs) > 0 {
 			segs[m.segCursor] = seg
 			m.lines[m.lineFocused] = segs
+			// Keep existing color on replace.
 		}
 	} else if m.pickerInsert {
 		newSegs := make([]pet.Segment, 0, len(segs)+1)
@@ -702,9 +795,19 @@ func (m *model) applySegment(seg pet.Segment) {
 		newSegs = append(newSegs, seg)
 		newSegs = append(newSegs, segs[m.segCursor:]...)
 		m.lines[m.lineFocused] = newSegs
+		// Insert 0 color at index.
+		newColors := make([]uint8, 0, len(colors)+1)
+		newColors = append(newColors, colors[:min(m.segCursor, len(colors))]...)
+		newColors = append(newColors, 0)
+		if m.segCursor < len(colors) {
+			newColors = append(newColors, colors[m.segCursor:]...)
+		}
+		m.lineColors[m.lineFocused] = newColors
 	} else {
 		m.lines[m.lineFocused] = append(segs, seg)
 		m.segCursor = len(m.lines[m.lineFocused]) - 1
+		// Append 0 color.
+		m.lineColors[m.lineFocused] = append(colors, 0)
 	}
 }
 
@@ -753,6 +856,43 @@ func (m model) updateTextEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m model) updateColorPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.section = sectionLineEdit
+		m.mode = modeList
+	case "up", "k":
+		if m.colorCursor >= colorsPerRow {
+			m.colorCursor -= colorsPerRow
+		}
+	case "down", "j":
+		if m.colorCursor+colorsPerRow < len(colorPalette) {
+			m.colorCursor += colorsPerRow
+		}
+	case "left", "h":
+		if m.colorCursor > 0 {
+			m.colorCursor--
+		}
+	case "right", "l":
+		if m.colorCursor < len(colorPalette)-1 {
+			m.colorCursor++
+		}
+	case "enter":
+		color := colorPalette[m.colorCursor]
+		// Ensure lineColors slice is large enough.
+		colors := m.lineColors[m.lineFocused]
+		for len(colors) <= m.segCursor {
+			colors = append(colors, 0)
+		}
+		colors[m.segCursor] = color
+		m.lineColors[m.lineFocused] = colors
+		m.save()
+		m.section = sectionLineEdit
+		m.mode = modeList
+	}
+	return m, nil
+}
+
 func (m *model) save() {
 	var lines []string
 	for i := 0; i < maxLines; i++ {
@@ -763,11 +903,35 @@ func (m *model) save() {
 	if len(lines) == 0 {
 		lines = pet.DefaultLines
 	}
+	// Collect line colors, omitting trailing all-zero slices.
+	var lc [][]uint8
+	for i := 0; i < maxLines; i++ {
+		if len(m.lines[i]) > 0 {
+			lc = append(lc, m.lineColors[i])
+		}
+	}
+	// Trim trailing empty color slices.
+	for len(lc) > 0 {
+		last := lc[len(lc)-1]
+		allZero := true
+		for _, c := range last {
+			if c != 0 {
+				allZero = false
+				break
+			}
+		}
+		if allZero || len(last) == 0 {
+			lc = lc[:len(lc)-1]
+		} else {
+			break
+		}
+	}
 	cfg := &pet.Config{
 		Species:     m.current,
 		ContextMode: m.currentCtxMode,
 		Separator:   m.separator,
 		Lines:       lines,
+		LineColors:  lc,
 		DisplayMode: m.displayMode,
 		WrapCommand: m.wrapCommand,
 	}
@@ -804,6 +968,8 @@ func (m model) View() string {
 		m.viewWrapCommandPicker(&b)
 	case sectionWrapCommandEdit:
 		m.viewWrapCommandEdit(&b)
+	case sectionColorPicker:
+		m.viewColorPicker(&b)
 	}
 	b.WriteString("\n")
 	return b.String()
@@ -1015,8 +1181,14 @@ func (m model) viewLineEdit(b *strings.Builder) {
 		if len(m.lines[i]) == 0 {
 			continue
 		}
-		tmpl := pet.SegmentsToTemplate(m.lines[i], m.separator)
-		rendered := pet.RenderTemplate(tmpl, sample)
+		colors := m.lineColors[i]
+		var rendered string
+		if len(colors) > 0 {
+			rendered = m.renderColoredPreview(m.lines[i], colors, sample)
+		} else {
+			tmpl := pet.SegmentsToTemplate(m.lines[i], m.separator)
+			rendered = pet.RenderTemplate(tmpl, sample)
+		}
 		if rendered != "" {
 			previewLines = append(previewLines, "  "+rendered)
 		}
@@ -1035,7 +1207,7 @@ func (m model) viewLineEdit(b *strings.Builder) {
 	switch m.mode {
 	case modeList:
 		nav(b, "esc back \u00b7 \u2191\u2193 select \u00b7 \u2190\u2192 change type")
-		nav(b, "(a)dd \u00b7 (i)nsert \u00b7 (d)elete \u00b7 (c)lear")
+		nav(b, "(a)dd \u00b7 (i)nsert \u00b7 (d)elete \u00b7 (c)lear \u00b7 (f)oreground")
 	case modePicker:
 		nav(b, "esc back \u00b7 \u2191\u2193 select \u00b7 enter choose")
 	case modeCmdEdit:
@@ -1059,8 +1231,14 @@ func (m model) viewSegmentList(b *strings.Builder) {
 		b.WriteString("\n")
 		return
 	}
+	colors := m.lineColors[m.lineFocused]
 	for i, seg := range segs {
 		emoji, label := segmentParts(seg)
+		// Show color swatch if segment has a color.
+		if i < len(colors) && colors[i] != 0 {
+			swatch := lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("%d", colors[i]))).Render("\u2588")
+			label = swatch + " " + label
+		}
 		row(b, i == m.segCursor, emoji, label)
 	}
 }
@@ -1113,6 +1291,123 @@ func (m model) viewTextEdit(b *strings.Builder) {
 		padEmoji("\u26a1"), "Command",
 		accentStyle.Render(text),
 		cursorStyle.Render("\u2588")))
+}
+
+// renderColoredPreview renders a line with lipgloss colors for the TUI preview.
+func (m model) renderColoredPreview(segs []pet.Segment, colors []uint8, sample *pet.SegmentData) string {
+	type item struct {
+		text  string
+		kind  pet.SegmentKind
+		color uint8
+	}
+	var items []item
+	for i, seg := range segs {
+		var c uint8
+		if i < len(colors) {
+			c = colors[i]
+		}
+		var text string
+		switch seg.Kind {
+		case pet.KindToken:
+			text = pet.RenderTemplate("{"+seg.Value+"}", sample)
+		case pet.KindSeparator:
+			text = seg.Value
+			if text == "" {
+				text = m.separator
+			}
+		case pet.KindCommand:
+			text = "[cmd]"
+		}
+		items = append(items, item{text: text, kind: seg.Kind, color: c})
+	}
+	// Filter empty tokens.
+	var filtered []item
+	for _, r := range items {
+		if r.kind != pet.KindSeparator && r.text == "" {
+			continue
+		}
+		filtered = append(filtered, r)
+	}
+	// Remove dangling separators.
+	var cleaned []item
+	for i, r := range filtered {
+		if r.kind == pet.KindSeparator {
+			if len(cleaned) == 0 || i == len(filtered)-1 || cleaned[len(cleaned)-1].kind == pet.KindSeparator {
+				continue
+			}
+		}
+		cleaned = append(cleaned, r)
+	}
+	if len(cleaned) > 0 && cleaned[len(cleaned)-1].kind == pet.KindSeparator {
+		cleaned = cleaned[:len(cleaned)-1]
+	}
+	var b strings.Builder
+	for i, r := range cleaned {
+		if i > 0 && r.kind != pet.KindSeparator && cleaned[i-1].kind != pet.KindSeparator {
+			b.WriteByte(' ')
+		}
+		text := r.text
+		if r.color != 0 {
+			text = lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("%d", r.color))).Render(text)
+		}
+		b.WriteString(text)
+	}
+	return b.String()
+}
+
+func (m model) viewColorPicker(b *strings.Builder) {
+	header(b, "\U0001F3A8", "Foreground Color")
+	nav(b, "esc back \u00b7 arrows navigate \u00b7 enter select")
+	b.WriteString("\n")
+
+	// Render grid of color swatches.
+	for i, c := range colorPalette {
+		if i > 0 && i%colorsPerRow == 0 {
+			b.WriteString("\n")
+		}
+		if i%colorsPerRow == 0 {
+			b.WriteString("      ")
+		}
+		swatch := "\u2588\u2588"
+		if c == 0 {
+			swatch = "--"
+		} else {
+			swatch = lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("%d", c))).Render(swatch)
+		}
+		if i == m.colorCursor {
+			b.WriteString(cursorStyle.Render("[") + swatch + cursorStyle.Render("]"))
+		} else {
+			b.WriteString(" " + swatch + " ")
+		}
+	}
+	b.WriteString("\n\n")
+
+	// Show selected color label and preview.
+	selected := colorPalette[m.colorCursor]
+	label := colorLabel(selected)
+	b.WriteString(fmt.Sprintf("      %s %s\n", dimStyle.Render("color:"), valueStyle.Render(label)))
+
+	// Preview: show the focused segment text in the selected color.
+	segs := m.lines[m.lineFocused]
+	if m.segCursor < len(segs) {
+		sample := pet.SampleSegmentData(m.current, pet.SizeNormal)
+		seg := segs[m.segCursor]
+		var text string
+		switch seg.Kind {
+		case pet.KindToken:
+			text = pet.RenderTemplate("{"+seg.Value+"}", sample)
+		case pet.KindSeparator:
+			text = m.separator
+		case pet.KindCommand:
+			text = "[cmd]"
+		}
+		if selected == 0 {
+			b.WriteString(fmt.Sprintf("      %s %s\n", dimStyle.Render("preview:"), text))
+		} else {
+			styled := lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("%d", selected))).Render(text)
+			b.WriteString(fmt.Sprintf("      %s %s\n", dimStyle.Render("preview:"), styled))
+		}
+	}
 }
 
 func main() {

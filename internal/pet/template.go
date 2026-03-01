@@ -208,6 +208,119 @@ func BuildSegmentData(s *State, claudeJSON map[string]any, barWidth int) *Segmen
 	return d
 }
 
+// ColorSegment wraps text in ANSI 256-color escape codes.
+// color=0 means no color (returns text unchanged).
+func ColorSegment(text string, color uint8) string {
+	if color == 0 || text == "" {
+		return text
+	}
+	return fmt.Sprintf("\x1b[38;5;%dm%s\x1b[0m", color, text)
+}
+
+// resolveToken resolves a single token name to its display string.
+func resolveToken(key string, data *SegmentData) string {
+	switch key {
+	case "cwd":
+		return data.Cwd
+	case "branch":
+		return data.Branch
+	case "pet":
+		return data.Pet
+	case "mood":
+		return data.Mood
+	case "changes":
+		return data.Changes
+	case "model":
+		return data.Model
+	case "ctx":
+		return data.Ctx
+	case "bar":
+		return data.Bar
+	case "joy":
+		return data.Snacks
+	case "cost":
+		return data.Cost
+	default:
+		return "{" + key + "}"
+	}
+}
+
+// execCommand runs a shell command with a timeout and returns its output.
+func execCommand(cmd string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "sh", "-c", cmd).Output()
+	if err != nil {
+		return "<err>"
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// RenderColoredLine resolves segments, filters empties and dangling separators,
+// auto-spaces between non-separator segments, and applies per-segment colors.
+func RenderColoredLine(segs []Segment, colors []uint8, data *SegmentData) string {
+	// Resolve each segment's text.
+	type resolved struct {
+		text  string
+		kind  SegmentKind
+		color uint8
+	}
+	items := make([]resolved, len(segs))
+	for i, seg := range segs {
+		var color uint8
+		if i < len(colors) {
+			color = colors[i]
+		}
+		switch seg.Kind {
+		case KindToken:
+			items[i] = resolved{text: resolveToken(seg.Value, data), kind: KindToken, color: color}
+		case KindCommand:
+			items[i] = resolved{text: execCommand(seg.Value), kind: KindCommand, color: color}
+		case KindSeparator:
+			items[i] = resolved{text: seg.Value, kind: KindSeparator, color: color}
+		}
+	}
+
+	// Filter empty tokens and dangling separators.
+	var filtered []resolved
+	for _, r := range items {
+		if r.kind != KindSeparator && r.text == "" {
+			continue
+		}
+		filtered = append(filtered, r)
+	}
+	// Remove leading/trailing separators and collapse adjacent separators.
+	var cleaned []resolved
+	for i, r := range filtered {
+		if r.kind == KindSeparator {
+			if len(cleaned) == 0 {
+				continue // leading separator
+			}
+			if i == len(filtered)-1 {
+				continue // trailing separator
+			}
+			if cleaned[len(cleaned)-1].kind == KindSeparator {
+				continue // consecutive separator
+			}
+		}
+		cleaned = append(cleaned, r)
+	}
+	// Remove trailing separator that might remain.
+	if len(cleaned) > 0 && cleaned[len(cleaned)-1].kind == KindSeparator {
+		cleaned = cleaned[:len(cleaned)-1]
+	}
+
+	// Build output with auto-spacing and colors.
+	var b strings.Builder
+	for i, r := range cleaned {
+		if i > 0 && r.kind != KindSeparator && cleaned[i-1].kind != KindSeparator {
+			b.WriteByte(' ')
+		}
+		b.WriteString(ColorSegment(r.text, r.color))
+	}
+	return b.String()
+}
+
 // RenderTemplate replaces {token} placeholders and [cmd: ...] commands,
 // then cleans up dangling separators.
 func RenderTemplate(tmpl string, data *SegmentData) string {
@@ -217,43 +330,12 @@ func RenderTemplate(tmpl string, data *SegmentData) string {
 		if len(sub) < 2 {
 			return match
 		}
-		cmd := sub[1]
-		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-		defer cancel()
-		out, err := exec.CommandContext(ctx, "sh", "-c", cmd).Output()
-		if err != nil {
-			return "<err>"
-		}
-		return strings.TrimSpace(string(out))
+		return execCommand(sub[1])
 	})
 
 	// Then replace {token} placeholders
 	result = tokenRe.ReplaceAllStringFunc(result, func(match string) string {
-		key := match[1 : len(match)-1]
-		switch key {
-		case "cwd":
-			return data.Cwd
-		case "branch":
-			return data.Branch
-		case "pet":
-			return data.Pet
-		case "mood":
-			return data.Mood
-		case "changes":
-			return data.Changes
-		case "model":
-			return data.Model
-		case "ctx":
-			return data.Ctx
-		case "bar":
-			return data.Bar
-		case "joy":
-			return data.Snacks
-		case "cost":
-			return data.Cost
-		default:
-			return match
-		}
+		return resolveToken(match[1:len(match)-1], data)
 	})
 
 	// Clean dangling separators: " | " at start/end, or doubled " | | "
@@ -273,8 +355,18 @@ func RenderLines(s *State, claudeJSON map[string]any, barWidth int) []string {
 	data := BuildSegmentData(s, claudeJSON, barWidth)
 
 	var lines []string
-	for _, tmpl := range s.Lines {
-		rendered := RenderTemplate(tmpl, data)
+	for i, tmpl := range s.Lines {
+		var colors []uint8
+		if i < len(s.LineColors) {
+			colors = s.LineColors[i]
+		}
+		var rendered string
+		if len(colors) > 0 {
+			segs := TemplateToSegments(tmpl)
+			rendered = RenderColoredLine(segs, colors, data)
+		} else {
+			rendered = RenderTemplate(tmpl, data)
+		}
 		if rendered != "" {
 			lines = append(lines, rendered)
 		}

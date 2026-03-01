@@ -40,7 +40,8 @@ type Config struct {
 	Species     Species     `json:"species"`
 	ContextMode ContextMode `json:"context_mode"`
 	Separator   string      `json:"separator"`
-	Lines       []string    `json:"lines,omitempty"`
+	Lines      []string    `json:"lines,omitempty"`
+	LineColors [][]uint8   `json:"line_colors,omitempty"`
 	DisplayMode DisplayMode `json:"display_mode,omitempty"`
 	WrapCommand string      `json:"wrap_command,omitempty"`
 
@@ -163,6 +164,7 @@ func updateActiveSessions(c *Config) {
 		state.Species = c.Species
 		state.ContextMode = c.ContextMode
 		state.Lines = c.Lines
+		state.LineColors = c.LineColors
 		state.DisplayMode = c.DisplayMode
 		state.WrapCommand = c.WrapCommand
 		_ = SaveState(path, state)

@@ -186,7 +186,8 @@ func SizeFromContext(pct float64) Size {
 type State struct {
 	Species     Species     `json:"species"`
 	ContextMode ContextMode `json:"context_mode"`
-	Lines       []string    `json:"lines,omitempty"`
+	Lines      []string    `json:"lines,omitempty"`
+	LineColors [][]uint8   `json:"line_colors,omitempty"`
 	DisplayMode DisplayMode `json:"display_mode,omitempty"`
 	WrapCommand string      `json:"wrap_command,omitempty"`
 	Mood        Mood        `json:"mood"`
@@ -201,7 +202,8 @@ func NewState() *State {
 	return &State{
 		Species:     cfg.Species,
 		ContextMode: cfg.ContextMode,
-		Lines:       cfg.Lines,
+		Lines:      cfg.Lines,
+		LineColors: cfg.LineColors,
 		DisplayMode: cfg.DisplayMode,
 		WrapCommand: cfg.WrapCommand,
 		Mood:        MoodSleeping,

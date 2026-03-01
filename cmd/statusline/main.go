@@ -19,9 +19,16 @@ func main() {
 	}
 
 	// Load pet state, update context from Claude's JSON, compute mood
-	state := pet.LoadState(pet.DefaultStatePath)
 	var claudeJSON map[string]any
+	var sessionID string
 	if json.Unmarshal(data, &claudeJSON) == nil {
+		if sid, ok := claudeJSON["session_id"].(string); ok {
+			sessionID = sid
+		}
+	}
+	statePath := pet.StatePath(sessionID)
+	state := pet.LoadState(statePath)
+	if claudeJSON != nil {
 		if cw, ok := claudeJSON["context_window"].(map[string]any); ok {
 			if pct, ok := cw["used_percentage"].(float64); ok {
 				state.SetContext(pct)
@@ -29,7 +36,7 @@ func main() {
 		}
 	}
 	state.ComputeMood()
-	_ = pet.SaveState(pet.DefaultStatePath, state)
+	_ = pet.SaveState(statePath, state)
 
 	// Line 1: pet status
 	petLine := pet.FormatPetLine(state)

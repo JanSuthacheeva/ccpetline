@@ -8,7 +8,16 @@ import (
 	"time"
 )
 
-const DefaultStatePath = "/tmp/claude-pet-state.json"
+const stateDir = "/tmp"
+
+// StatePath returns the state file path for a given session ID.
+// Falls back to a default path if sessionID is empty.
+func StatePath(sessionID string) string {
+	if sessionID == "" {
+		return filepath.Join(stateDir, "claude-pet-state.json")
+	}
+	return filepath.Join(stateDir, fmt.Sprintf("claude-pet-state-%s.json", sessionID))
+}
 
 type Mood int
 
@@ -38,7 +47,6 @@ const (
 	SizeNormal
 	SizeChonky
 	SizeMegaChonk
-	SizeAbsoluteUnit
 )
 
 func (s Size) String() string {
@@ -51,8 +59,6 @@ func (s Size) String() string {
 		return "chonky"
 	case SizeMegaChonk:
 		return "mega chonk"
-	case SizeAbsoluteUnit:
-		return "ABSOLUTE UNIT"
 	default:
 		return "unknown"
 	}
@@ -62,14 +68,12 @@ func SizeFromContext(pct float64) Size {
 	switch {
 	case pct <= 20:
 		return SizeTiny
-	case pct <= 45:
+	case pct <= 35:
 		return SizeNormal
-	case pct <= 70:
+	case pct <= 60:
 		return SizeChonky
-	case pct <= 90:
-		return SizeMegaChonk
 	default:
-		return SizeAbsoluteUnit
+		return SizeMegaChonk
 	}
 }
 
@@ -130,6 +134,30 @@ func (s *State) ComputeMood() {
 		s.Mood = MoodBored
 	case elapsed > 60*time.Second:
 		s.Mood = MoodSleeping
+	}
+}
+
+// CleanStaleStates removes state files not modified in the given duration.
+func CleanStaleStates(maxAge time.Duration) {
+	entries, err := os.ReadDir(stateDir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if len(name) < 18 || name[:16] != "claude-pet-state" || name[len(name)-5:] != ".json" {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if time.Since(info.ModTime()) > maxAge {
+			os.Remove(filepath.Join(stateDir, name))
+		}
 	}
 }
 

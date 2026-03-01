@@ -37,7 +37,7 @@ func SampleSegmentData(species Species, size Size) *SegmentData {
 		Mood:    "bored",
 		Snacks:  "Snacks: 5",
 		Bar:     strings.Repeat("\u2500", 3) + emoji + strings.Repeat("\u2500", 12) + " Ctx: 53.1%",
-		Model:   "Opus 4",
+		Model:   "Model: Opus 4",
 		Ctx:     "53%",
 		Cost:    "$0.42",
 		Changes: "(+12/-3)",
@@ -180,9 +180,9 @@ func BuildSegmentData(s *State, claudeJSON map[string]any, barWidth int) *Segmen
 	// {model}
 	if model, ok := claudeJSON["model"].(map[string]any); ok {
 		if name, ok := model["display_name"].(string); ok && name != "" {
-			d.Model = name
+			d.Model = "Model: " + name
 		} else if id, ok := model["id"].(string); ok && id != "" {
-			d.Model = id
+			d.Model = "Model: " + id
 		}
 	}
 

@@ -110,6 +110,7 @@ var tokenEmoji = map[string]string{
 	"cost":    "\U0001F4B0",
 	"changes": "\U0001F4DD",
 	"cwd":     "\U0001F4C2",
+	"dir":     "\U0001F4C1",
 	"branch":  "\U0001F33F",
 }
 

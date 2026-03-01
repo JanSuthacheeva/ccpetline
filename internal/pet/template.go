@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,7 +28,7 @@ type Segment struct {
 }
 
 // AllTokens is the ordered list of available template tokens.
-var AllTokens = []string{"pet", "mood", "joy", "bar", "model", "ctx", "cost", "changes", "cwd", "branch"}
+var AllTokens = []string{"pet", "mood", "joy", "bar", "model", "ctx", "cost", "changes", "cwd", "dir", "branch"}
 
 // SampleSegmentData returns example values for preview rendering.
 func SampleSegmentData(species Species, size Size) *SegmentData {
@@ -42,6 +43,7 @@ func SampleSegmentData(species Species, size Size) *SegmentData {
 		Cost:    "$0.42",
 		Changes: "(+12/-3)",
 		Cwd:     "~/project",
+		Dir:     "project",
 		Branch:  "main",
 	}
 }
@@ -131,6 +133,7 @@ func TemplateToTokens(tmpl string) []string {
 // SegmentData holds all resolved token values for template rendering.
 type SegmentData struct {
 	Cwd     string
+	Dir     string
 	Branch  string
 	Pet     string
 	Mood    string
@@ -153,6 +156,7 @@ func BuildSegmentData(s *State, claudeJSON map[string]any, barWidth int) *Segmen
 			wd = "~" + wd[len(home):]
 		}
 		d.Cwd = wd
+		d.Dir = filepath.Base(wd)
 	}
 
 	// {branch}
@@ -222,6 +226,8 @@ func resolveToken(key string, data *SegmentData) string {
 	switch key {
 	case "cwd":
 		return data.Cwd
+	case "dir":
+		return data.Dir
 	case "branch":
 		return data.Branch
 	case "pet":

@@ -1138,7 +1138,7 @@ func nav(b *strings.Builder, hint string) {
 }
 
 func (m model) viewMenu(b *strings.Builder) {
-	header(b, "\U0001F9F8", "Claude Pet Config")
+	header(b, "\U0001F9F8", "ccpetline config")
 	b.WriteString("\n")
 
 	items := menuItems()

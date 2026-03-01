@@ -88,11 +88,13 @@ type menuItem struct {
 
 func menuItems() []menuItem {
 	return []menuItem{
+		{label: "Display Mode", emoji: "\U0001F4FA", section: sectionDisplayMode},
+		{},
 		{label: "Edit Lines", emoji: "\u270f\ufe0f ", section: sectionLinesPicker},
 		{label: "Select Pet", emoji: "\U0001F43E", section: sectionSpecies},
-		{label: "Context Mode", emoji: "\U0001F4CA", section: sectionContextMode},
 		{label: "Separator", emoji: "\u2702\ufe0f ", section: sectionSeparator},
-		{label: "Display Mode", emoji: "\U0001F4FA", section: sectionDisplayMode},
+		{},
+		{label: "Context Mode", emoji: "\U0001F4CA", section: sectionContextMode},
 		{label: "Install to Claude Code", emoji: "\U0001F527", section: sectionInstall},
 	}
 }
@@ -253,8 +255,36 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// menuStop returns the total number of selectable positions (items + Exit).
+func menuStop(items []menuItem) int {
+	n := 0
+	for _, item := range items {
+		if item.label != "" {
+			n++
+		}
+	}
+	return n // Exit is the last position
+}
+
+// menuNthSelectable returns the index into items for the nth selectable item.
+// Returns -1 if n equals the Exit position.
+func menuNthSelectable(items []menuItem, n int) int {
+	cur := 0
+	for i, item := range items {
+		if item.label == "" {
+			continue
+		}
+		if cur == n {
+			return i
+		}
+		cur++
+	}
+	return -1
+}
+
 func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	items := menuItems()
+	stop := menuStop(items)
 	switch msg.String() {
 	case "q", "esc":
 		m.quitting = true
@@ -264,15 +294,19 @@ func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.menuCursor--
 		}
 	case "down", "j":
-		if m.menuCursor < len(items) {
+		if m.menuCursor < stop {
 			m.menuCursor++
 		}
 	case "enter":
-		if m.menuCursor == len(items) {
+		if m.menuCursor == stop {
 			m.quitting = true
 			return m, tea.Quit
 		}
-		dest := items[m.menuCursor].section
+		idx := menuNthSelectable(items, m.menuCursor)
+		if idx < 0 {
+			break
+		}
+		dest := items[idx].section
 		if dest == sectionSeparator {
 			m.editBuf = []rune(strings.TrimSpace(m.separator))
 			m.editCursor = len(m.editBuf)
@@ -809,7 +843,13 @@ func (m model) viewMenu(b *strings.Builder) {
 	b.WriteString("\n")
 
 	items := menuItems()
-	for i, item := range items {
+	stop := menuStop(items)
+	selIdx := 0
+	for _, item := range items {
+		if item.label == "" {
+			b.WriteString("\n")
+			continue
+		}
 		detail := ""
 		switch item.section {
 		case sectionSpecies:
@@ -828,16 +868,18 @@ func (m model) viewMenu(b *strings.Builder) {
 		}
 		text := item.label
 		if detail != "" {
-			if i == m.menuCursor {
+			if selIdx == m.menuCursor {
 				text += " " + valueStyle.Render(detail)
 			} else {
 				text += " " + dimStyle.Render(detail)
 			}
 		}
-		row(b, i == m.menuCursor, item.emoji, text)
+		row(b, selIdx == m.menuCursor, item.emoji, text)
+		selIdx++
 	}
 
-	row(b, m.menuCursor == len(items), "\U0001F44B", "Exit")
+	b.WriteString("\n")
+	row(b, m.menuCursor == stop, "\U0001F44B", "Exit")
 }
 
 func (m model) viewSpecies(b *strings.Builder) {

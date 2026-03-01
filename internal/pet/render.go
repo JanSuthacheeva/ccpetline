@@ -2,27 +2,26 @@ package pet
 
 import (
 	"fmt"
+	"math/rand"
 	"strings"
 )
 
-// SnackEmoji returns an emoji for the tool that was just eaten.
-func SnackEmoji(toolName string) string {
-	switch toolName {
-	case "Bash":
-		return "\U0001F32E" // taco
-	case "Read":
-		return "\U0001F957" // salad
-	case "Edit", "Write":
-		return "\U0001F36A" // cookie
-	case "Grep", "Glob":
-		return "\U0001F37F" // popcorn
-	case "Agent":
-		return "\U0001F355" // pizza
-	case "WebFetch", "WebSearch":
-		return "\U0001F363" // sushi
-	default:
-		return "\U0001F36C" // candy
-	}
+var foodEmojis = []string{
+	"\U0001F32E", // 🌮
+	"\U0001F957", // 🥗
+	"\U0001F36A", // 🍪
+	"\U0001F37F", // 🍿
+	"\U0001F355", // 🍕
+	"\U0001F363", // 🍣
+	"\U0001F36C", // 🍬
+	"\U0001F34E", // 🍎
+	"\U0001F953", // 🥓
+	"\U0001F96F", // 🥯
+}
+
+// SnackEmoji returns a random food emoji.
+func SnackEmoji(_ string) string {
+	return foodEmojis[rand.Intn(len(foodEmojis))]
 }
 
 // speciesEmojis maps each species to its 4-stage emoji progression [tiny, normal, chonky, mega].
@@ -54,7 +53,7 @@ func RenderEmoji(s *State) string {
 	case MoodEating:
 		return base + SnackEmoji(s.LastTool)
 	case MoodChasing:
-		return base + "\U0001F41B" // 🐛
+		return base + "\U0001F4A8" // 💨
 	case MoodDigging:
 		return base + "\U0001F573\uFE0F" // 🕳️
 	case MoodFetching:

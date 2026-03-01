@@ -11,7 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/jan/claude-pet/internal/pet"
+	"github.com/jansuthacheeva/ccpetline/internal/pet"
 )
 
 var (
@@ -448,12 +448,12 @@ func installToClaudeCode() string {
 
 	want := map[string]interface{}{
 		"type":    "command",
-		"command": "claude-pet-statusline",
+		"command": "ccpetline",
 	}
 
 	if existing, ok := settings["statusLine"]; ok {
 		if m, ok := existing.(map[string]interface{}); ok {
-			if m["type"] == "command" && m["command"] == "claude-pet-statusline" {
+			if m["type"] == "command" && m["command"] == "ccpetline" {
 				return "Already installed!"
 			}
 		}

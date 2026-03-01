@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jan/claude-pet/internal/pet"
+	"github.com/jansuthacheeva/ccpetline/internal/pet"
 )
 
 func main() {

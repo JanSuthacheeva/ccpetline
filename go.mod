@@ -1,4 +1,4 @@
-module github.com/jan/claude-pet
+module github.com/jansuthacheeva/ccpetline
 
 go 1.25.5
 

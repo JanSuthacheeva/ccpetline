@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "claude-pet-hook",
+            "command": "ccpetline-hook",
             "async": true
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "claude-pet-hook",
+            "command": "ccpetline-hook",
             "async": true
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "claude-pet-hook",
+            "command": "ccpetline-hook",
             "async": true
           }
         ]
@@ -37,7 +37,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "claude-pet-statusline",
+    "command": "ccpetline",
     "padding": 0
   }
 }

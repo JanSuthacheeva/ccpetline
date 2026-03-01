@@ -83,7 +83,7 @@ func ConfigPath() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(home, ".claude-pet", "config.json")
+	return filepath.Join(home, ".ccpetline", "config.json")
 }
 
 func barShowPetDefault() *bool {
@@ -193,7 +193,7 @@ func SaveConfig(c *Config) error {
 	return nil
 }
 
-// updateActiveSessions patches all /tmp/claude-pet-state-*.json files
+// updateActiveSessions patches all /tmp/ccpetline-state-*.json files
 // with the new config values so running sessions pick up changes immediately.
 func updateActiveSessions(c *Config) {
 	entries, err := os.ReadDir(stateDir)
@@ -202,7 +202,7 @@ func updateActiveSessions(c *Config) {
 	}
 	for _, e := range entries {
 		name := e.Name()
-		if e.IsDir() || len(name) < 18 || name[:16] != "claude-pet-state" || name[len(name)-5:] != ".json" {
+		if e.IsDir() || len(name) < 20 || name[:15] != "ccpetline-state" || name[len(name)-5:] != ".json" {
 			continue
 		}
 		path := filepath.Join(stateDir, name)

@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/jan/claude-pet/internal/pet"
+	"github.com/jansuthacheeva/ccpetline/internal/pet"
 )
 
 // hookInput is the JSON structure Claude Code sends on stdin to hooks.

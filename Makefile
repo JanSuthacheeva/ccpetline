@@ -3,12 +3,12 @@ BINDIR ?= $(HOME)/.local/bin
 .PHONY: build install clean
 
 build:
-	go build -o bin/claude-pet-hook ./cmd/hook
-	go build -o bin/claude-pet-statusline ./cmd/statusline
-	go build -o bin/claude-pet-config ./cmd/config
+	go build -o bin/ccpetline-hook ./cmd/hook
+	go build -o bin/ccpetline ./cmd/statusline
+	go build -o bin/ccpetline-config ./cmd/config
 
 install: build
-	cp bin/claude-pet-hook bin/claude-pet-statusline bin/claude-pet-config $(BINDIR)/
+	cp bin/ccpetline-hook bin/ccpetline bin/ccpetline-config $(BINDIR)/
 
 
 clean:

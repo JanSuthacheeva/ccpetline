@@ -15,9 +15,9 @@ const stateDir = "/tmp"
 // Falls back to a default path if sessionID is empty.
 func StatePath(sessionID string) string {
 	if sessionID == "" {
-		return filepath.Join(stateDir, "claude-pet-state.json")
+		return filepath.Join(stateDir, "ccpetline-state.json")
 	}
-	return filepath.Join(stateDir, fmt.Sprintf("claude-pet-state-%s.json", sessionID))
+	return filepath.Join(stateDir, fmt.Sprintf("ccpetline-state-%s.json", sessionID))
 }
 
 type Species string
@@ -288,7 +288,7 @@ func CleanStaleStates(maxAge time.Duration) {
 			continue
 		}
 		name := e.Name()
-		if len(name) < 18 || name[:16] != "claude-pet-state" || name[len(name)-5:] != ".json" {
+		if len(name) < 20 || name[:15] != "ccpetline-state" || name[len(name)-5:] != ".json" {
 			continue
 		}
 		info, err := e.Info()

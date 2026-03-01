@@ -6,7 +6,7 @@ import "fmt"
 func FormatPetLineKitty(s *State) string {
 	png := SpritePNG(s.Size, s.Mood)
 	if png == nil {
-		return FormatPetLine(s)
+		return RenderEmoji(s) + " " + s.Mood.String()
 	}
 	sprite := KittyInlinePNG(png)
 	suffix := fmt.Sprintf(" %s | snacks: %d", s.Mood.String(), s.Snacks)
@@ -22,16 +22,29 @@ func FormatSeparatorKitty(s *State, width int) string {
 	if png == nil {
 		return FormatSeparator(s, width)
 	}
-	pos := int(s.ContextPct / 100 * float64(width-1))
+	displayPct := s.ContextPct
+	label := "Ctx"
+	if s.ContextMode == ContextModeCtxU {
+		displayPct = s.ContextPct / 0.8
+		if displayPct > 100 {
+			displayPct = 100
+		}
+		label = "Ctx(u)"
+	}
+	suffix := fmt.Sprintf(" %s: %.1f%%", label, displayPct)
+	barWidth := width - len(suffix)
+	if barWidth < 2 {
+		barWidth = 2
+	}
+	pos := int(displayPct / 100 * float64(barWidth-1))
 	if pos < 0 {
 		pos = 0
 	}
-	if pos > width-1 {
-		pos = width - 1
+	if pos > barWidth-1 {
+		pos = barWidth - 1
 	}
-	suffix := fmt.Sprintf(" Ctx: %.1f%%", s.ContextPct)
 	left := repeatDash(pos)
-	rightLen := width - 1 - pos - len(suffix)
+	rightLen := barWidth - 1 - pos
 	if rightLen < 0 {
 		rightLen = 0
 	}

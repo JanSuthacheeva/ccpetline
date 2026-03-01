@@ -31,6 +31,22 @@ const (
 
 var AllSpecies = []Species{SpeciesGoose, SpeciesCat, SpeciesOcean, SpeciesDragon, SpeciesDino}
 
+type ContextMode string
+
+const (
+	ContextModeCtx  ContextMode = "ctx"
+	ContextModeCtxU ContextMode = "ctx_u"
+)
+
+var AllContextModes = []ContextMode{ContextModeCtx, ContextModeCtxU}
+
+func ParseContextMode(s string) ContextMode {
+	if ContextMode(s) == ContextModeCtxU {
+		return ContextModeCtxU
+	}
+	return ContextModeCtx
+}
+
 func ParseSpecies(s string) Species {
 	switch Species(s) {
 	case SpeciesGoose, SpeciesCat, SpeciesOcean, SpeciesDragon, SpeciesDino:
@@ -99,23 +115,27 @@ func SizeFromContext(pct float64) Size {
 }
 
 type State struct {
-	Species    Species   `json:"species"`
-	Mood       Mood      `json:"mood"`
-	Size       Size      `json:"size"`
-	ContextPct float64   `json:"context_pct"`
-	Snacks     int       `json:"snacks"`
-	LastSnack  string    `json:"last_snack"`
-	LastTool   string    `json:"last_tool"`
-	LastEvent  time.Time `json:"last_event"`
+	Species     Species     `json:"species"`
+	ContextMode ContextMode `json:"context_mode"`
+	Lines       []string    `json:"lines,omitempty"`
+	Mood        Mood        `json:"mood"`
+	Size        Size        `json:"size"`
+	ContextPct  float64     `json:"context_pct"`
+	Snacks      int         `json:"snacks"`
+	LastSnack   string      `json:"last_snack"`
+	LastTool    string      `json:"last_tool"`
+	LastEvent   time.Time   `json:"last_event"`
 }
 
 func NewState() *State {
-	species := ParseSpecies(os.Getenv("CLAUDE_PET_SPECIES"))
+	cfg := LoadConfig()
 	return &State{
-		Species:   species,
-		Mood:      MoodSleeping,
-		Size:      SizeTiny,
-		LastEvent: time.Now(),
+		Species:     cfg.Species,
+		ContextMode: cfg.ContextMode,
+		Lines:       cfg.Lines,
+		Mood:        MoodSleeping,
+		Size:        SizeTiny,
+		LastEvent:   time.Now(),
 	}
 }
 

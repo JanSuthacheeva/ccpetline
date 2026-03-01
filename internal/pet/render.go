@@ -27,11 +27,11 @@ func SnackEmoji(toolName string) string {
 
 // speciesEmojis maps each species to its 4-stage emoji progression [tiny, normal, chonky, mega].
 var speciesEmojis = map[Species][4]string{
-	SpeciesGoose:  {"\U0001F423", "\U0001F425", "\U0001FABF", "\U0001F9A2"},       // 🐣 🐥 🪿 🦢
+	SpeciesGoose:  {"\U0001F423", "\U0001F425", "\U0001FABF", "\U0001F9A2"},             // 🐣 🐥 🪿 🦢
 	SpeciesCat:    {"\U0001F431", "\U0001F408", "\U0001F408\u200D\u2B1B", "\U0001F981"}, // 🐱 🐈 🐈‍⬛ 🦁
-	SpeciesOcean:  {"\U0001F990", "\U0001F41F", "\U0001F42C", "\U0001F433"},       // 🦐 🐟 🐬 🐳
-	SpeciesDragon: {"\U0001F95A", "\U0001F98E", "\U0001F409", "\U0001F432"},       // 🥚 🦎 🐉 🐲
-	SpeciesDino:   {"\U0001F9B4", "\U0001F43E", "\U0001F996", "\U0001F995"},       // 🦴 🐾 🦖 🦕
+	SpeciesOcean:  {"\U0001F990", "\U0001F41F", "\U0001F42C", "\U0001F433"},             // 🦐 🐟 🐬 🐳
+	SpeciesDragon: {"\U0001F95A", "\U0001F98E", "\U0001F409", "\U0001F432"},             // 🥚 🦎 🐉 🐲
+	SpeciesDino:   {"\U0001F9B4", "\U0001F43E", "\U0001F996", "\U0001F995"},             // 🦴 🐾 🦖 🦕
 }
 
 // SizeEmoji returns the pet emoji based on species and size.
@@ -65,60 +65,34 @@ func RenderEmoji(s *State) string {
 // FormatSeparator returns a separator line with the pet emoji positioned by context %.
 func FormatSeparator(s *State, width int) string {
 	emoji := SizeEmoji(s.Species, s.Size)
-	pos := int(s.ContextPct / 100 * float64(width-1))
+
+	displayPct := s.ContextPct
+	label := "Ctx"
+	if s.ContextMode == ContextModeCtxU {
+		displayPct = s.ContextPct / 0.8
+		if displayPct > 100 {
+			displayPct = 100
+		}
+		label = "Ctx(u)"
+	}
+
+	suffix := fmt.Sprintf(" %s: %.1f%%", label, displayPct)
+	barWidth := width - len(suffix)
+	if barWidth < 2 {
+		barWidth = 2
+	}
+	pos := int(displayPct / 100 * float64(barWidth-1))
 	if pos < 0 {
 		pos = 0
 	}
-	if pos > width-1 {
-		pos = width - 1
+	if pos > barWidth-1 {
+		pos = barWidth - 1
 	}
-	suffix := fmt.Sprintf(" Ctx: %.1f%%", s.ContextPct)
 	left := strings.Repeat("\u2500", pos)
-	rightLen := width - 1 - pos - len(suffix)
+	rightLen := barWidth - 1 - pos
 	if rightLen < 0 {
 		rightLen = 0
 	}
 	right := strings.Repeat("\u2500", rightLen)
 	return left + emoji + right + suffix
-}
-
-// FormatPetLine returns the single pet status line.
-func FormatPetLine(s *State) string {
-	return fmt.Sprintf("%s %s | snacks: %d", RenderEmoji(s), s.Mood.String(), s.Snacks)
-}
-
-// FormatFallbackStatus returns a basic status line from Claude's JSON
-// when ccstatusline is not available.
-func FormatFallbackStatus(j map[string]any) string {
-	var parts []string
-
-	if model, ok := j["model"].(map[string]any); ok {
-		if name, ok := model["display_name"].(string); ok && name != "" {
-			parts = append(parts, name)
-		} else if id, ok := model["id"].(string); ok && id != "" {
-			parts = append(parts, id)
-		}
-	}
-	if cost, ok := j["cost"].(map[string]any); ok {
-		if total, ok := cost["total_cost_usd"].(float64); ok && total > 0 {
-			parts = append(parts, fmt.Sprintf("$%.2f", total))
-		}
-	}
-	if cw, ok := j["context_window"].(map[string]any); ok {
-		if pct, ok := cw["used_percentage"].(float64); ok && pct > 0 {
-			parts = append(parts, fmt.Sprintf("ctx: %.0f%%", pct))
-		}
-	}
-	if lines, ok := j["lines_changed"].(map[string]any); ok {
-		added, _ := lines["added"].(float64)
-		removed, _ := lines["removed"].(float64)
-		if added > 0 || removed > 0 {
-			parts = append(parts, fmt.Sprintf("+%.0f/-%.0f lines", added, removed))
-		}
-	}
-
-	if len(parts) == 0 {
-		return ""
-	}
-	return strings.Join(parts, " | ")
 }

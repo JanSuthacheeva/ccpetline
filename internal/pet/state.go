@@ -118,6 +118,8 @@ type State struct {
 	Species     Species     `json:"species"`
 	ContextMode ContextMode `json:"context_mode"`
 	Lines       []string    `json:"lines,omitempty"`
+	DisplayMode DisplayMode `json:"display_mode,omitempty"`
+	WrapCommand string      `json:"wrap_command,omitempty"`
 	Mood        Mood        `json:"mood"`
 	Size        Size        `json:"size"`
 	ContextPct  float64     `json:"context_pct"`
@@ -133,6 +135,8 @@ func NewState() *State {
 		Species:     cfg.Species,
 		ContextMode: cfg.ContextMode,
 		Lines:       cfg.Lines,
+		DisplayMode: cfg.DisplayMode,
+		WrapCommand: cfg.WrapCommand,
 		Mood:        MoodSleeping,
 		Size:        SizeTiny,
 		LastEvent:   time.Now(),

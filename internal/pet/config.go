@@ -15,11 +15,34 @@ var DefaultLines = []string{
 // DefaultSeparator is the default token separator.
 const DefaultSeparator = " | "
 
+type DisplayMode string
+
+const (
+	ModeStandalone DisplayMode = ""
+	ModePrepend    DisplayMode = "prepend"
+	ModeAppend     DisplayMode = "append"
+)
+
+var AllDisplayModes = []DisplayMode{ModeStandalone, ModePrepend, ModeAppend}
+
+func DisplayModeLabel(m DisplayMode) string {
+	switch m {
+	case ModePrepend:
+		return "Prepend"
+	case ModeAppend:
+		return "Append"
+	default:
+		return "Standalone"
+	}
+}
+
 type Config struct {
 	Species     Species     `json:"species"`
 	ContextMode ContextMode `json:"context_mode"`
 	Separator   string      `json:"separator"`
 	Lines       []string    `json:"lines,omitempty"`
+	DisplayMode DisplayMode `json:"display_mode,omitempty"`
+	WrapCommand string      `json:"wrap_command,omitempty"`
 
 	// Deprecated fields kept for migration only.
 	ShowSnacks *bool `json:"show_snacks,omitempty"`
@@ -140,6 +163,8 @@ func updateActiveSessions(c *Config) {
 		state.Species = c.Species
 		state.ContextMode = c.ContextMode
 		state.Lines = c.Lines
+		state.DisplayMode = c.DisplayMode
+		state.WrapCommand = c.WrapCommand
 		_ = SaveState(path, state)
 	}
 }

@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/jan/claude-pet/internal/pet"
 )
@@ -36,9 +40,51 @@ func main() {
 	state.ComputeMood()
 	_ = pet.SaveState(statePath, state)
 
-	lines := pet.RenderLines(state, claudeJSON, 50)
-	for _, line := range lines {
-		line = strings.ReplaceAll(line, " ", "\u00A0")
-		fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", line)
+	petLines := pet.RenderLines(state, claudeJSON, 50)
+
+	if state.DisplayMode == pet.ModePrepend || state.DisplayMode == pet.ModeAppend {
+		wrappedLines := runWrapCommand(state.WrapCommand, data)
+		var combined []string
+		if state.DisplayMode == pet.ModePrepend {
+			combined = append(combined, petLines...)
+			combined = append(combined, wrappedLines...)
+		} else {
+			combined = append(combined, wrappedLines...)
+			combined = append(combined, petLines...)
+		}
+		for _, line := range combined {
+			line = strings.ReplaceAll(line, " ", "\u00A0")
+			fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", line)
+		}
+	} else {
+		for _, line := range petLines {
+			line = strings.ReplaceAll(line, " ", "\u00A0")
+			fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", line)
+		}
 	}
+}
+
+// runWrapCommand executes the wrap command with the given stdin data and returns
+// its stdout lines. Returns nil on error or timeout.
+func runWrapCommand(command string, stdinData []byte) []string {
+	if command == "" {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	cmd.Stdin = bytes.NewReader(stdinData)
+
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+
+	raw := strings.TrimRight(string(out), "\n")
+	if raw == "" {
+		return nil
+	}
+	return strings.Split(raw, "\n")
 }

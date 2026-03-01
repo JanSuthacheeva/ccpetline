@@ -38,6 +38,9 @@ const (
 	sectionLinesPicker
 	sectionLineEdit
 	sectionInstall
+	sectionDisplayMode
+	sectionWrapCommandPicker
+	sectionWrapCommandEdit
 )
 
 const maxLines = 3
@@ -89,6 +92,7 @@ func menuItems() []menuItem {
 		{label: "Select Pet", emoji: "\U0001F43E", section: sectionSpecies},
 		{label: "Context Mode", emoji: "\U0001F4CA", section: sectionContextMode},
 		{label: "Separator", emoji: "\u2702\ufe0f ", section: sectionSeparator},
+		{label: "Display Mode", emoji: "\U0001F4FA", section: sectionDisplayMode},
 		{label: "Install to Claude Code", emoji: "\U0001F527", section: sectionInstall},
 	}
 }
@@ -140,6 +144,11 @@ type model struct {
 	editCursor  int
 	editInPlace bool
 
+	displayMode      pet.DisplayMode
+	displayCursor    int
+	wrapCommand      string
+	wrapPickerCursor int
+
 	installStatus string
 
 	quitting bool
@@ -182,6 +191,14 @@ func initialModel() model {
 		lines[i] = pet.TemplateToSegments(tmpl)
 	}
 
+	displayCursor := 0
+	for i, dm := range pet.AllDisplayModes {
+		if dm == cfg.DisplayMode {
+			displayCursor = i
+			break
+		}
+	}
+
 	return model{
 		section:        sectionMenu,
 		options:        opts,
@@ -193,6 +210,9 @@ func initialModel() model {
 		separator:      cfg.Separator,
 		lines:          lines,
 		pickerItems:    buildPickerItems(),
+		displayMode:    cfg.DisplayMode,
+		displayCursor:  displayCursor,
+		wrapCommand:    cfg.WrapCommand,
 	}
 }
 
@@ -222,6 +242,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateLineEdit(msg)
 		case sectionInstall:
 			return m.updateInstall(msg)
+		case sectionDisplayMode:
+			return m.updateDisplayMode(msg)
+		case sectionWrapCommandPicker:
+			return m.updateWrapCommandPicker(msg)
+		case sectionWrapCommandEdit:
+			return m.updateWrapCommandEdit(msg)
 		}
 	}
 	return m, nil
@@ -315,6 +341,111 @@ func installToClaudeCode() string {
 	}
 
 	return "Installed! Restart Claude Code to activate."
+}
+
+func (m model) updateDisplayMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	modes := pet.AllDisplayModes
+	switch msg.String() {
+	case "esc":
+		m.section = sectionMenu
+	case "up", "k":
+		if m.displayCursor > 0 {
+			m.displayCursor--
+		}
+	case "down", "j":
+		if m.displayCursor < len(modes)-1 {
+			m.displayCursor++
+		}
+	case "enter":
+		m.displayMode = modes[m.displayCursor]
+		m.save()
+		if m.displayMode != pet.ModeStandalone {
+			m.wrapPickerCursor = 0
+			m.section = sectionWrapCommandPicker
+		} else {
+			m.section = sectionMenu
+		}
+	}
+	return m, nil
+}
+
+const ccstatuslineCmd = "npx -y ccstatusline@latest"
+
+type wrapOption struct {
+	label   string
+	command string
+	custom  bool
+}
+
+func wrapCommandOptions() []wrapOption {
+	return []wrapOption{
+		{label: "ccstatusline", command: ccstatuslineCmd},
+		{label: "Custom command", custom: true},
+	}
+}
+
+func (m model) updateWrapCommandPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	opts := wrapCommandOptions()
+	switch msg.String() {
+	case "esc":
+		m.section = sectionMenu
+	case "up", "k":
+		if m.wrapPickerCursor > 0 {
+			m.wrapPickerCursor--
+		}
+	case "down", "j":
+		if m.wrapPickerCursor < len(opts)-1 {
+			m.wrapPickerCursor++
+		}
+	case "enter":
+		opt := opts[m.wrapPickerCursor]
+		if opt.custom {
+			m.editBuf = []rune(m.wrapCommand)
+			m.editCursor = len(m.editBuf)
+			m.section = sectionWrapCommandEdit
+		} else {
+			m.wrapCommand = opt.command
+			m.save()
+			m.section = sectionMenu
+		}
+	}
+	return m, nil
+}
+
+func (m model) updateWrapCommandEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.section = sectionMenu
+	case "enter":
+		m.wrapCommand = string(m.editBuf)
+		m.save()
+		m.section = sectionMenu
+	case "backspace":
+		if len(m.editBuf) > 0 && m.editCursor > 0 {
+			m.editBuf = append(m.editBuf[:m.editCursor-1], m.editBuf[m.editCursor:]...)
+			m.editCursor--
+		}
+	case "left":
+		if m.editCursor > 0 {
+			m.editCursor--
+		}
+	case "right":
+		if m.editCursor < len(m.editBuf) {
+			m.editCursor++
+		}
+	default:
+		for _, r := range msg.String() {
+			if unicode.IsPrint(r) {
+				newBuf := make([]rune, len(m.editBuf)+1)
+				copy(newBuf, m.editBuf[:m.editCursor])
+				newBuf[m.editCursor] = r
+				copy(newBuf[m.editCursor+1:], m.editBuf[m.editCursor:])
+				m.editBuf = newBuf
+				m.editCursor++
+			}
+		}
+	}
+	return m, nil
 }
 
 func (m model) updateSpecies(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -603,6 +734,8 @@ func (m *model) save() {
 		ContextMode: m.currentCtxMode,
 		Separator:   m.separator,
 		Lines:       lines,
+		DisplayMode: m.displayMode,
+		WrapCommand: m.wrapCommand,
 	}
 	if err := pet.SaveConfig(cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "Error saving config: %v\n", err)
@@ -631,6 +764,12 @@ func (m model) View() string {
 		m.viewLineEdit(&b)
 	case sectionInstall:
 		m.viewInstall(&b)
+	case sectionDisplayMode:
+		m.viewDisplayMode(&b)
+	case sectionWrapCommandPicker:
+		m.viewWrapCommandPicker(&b)
+	case sectionWrapCommandEdit:
+		m.viewWrapCommandEdit(&b)
 	}
 	b.WriteString("\n")
 	return b.String()
@@ -684,6 +823,8 @@ func (m model) viewMenu(b *strings.Builder) {
 			}
 		case sectionSeparator:
 			detail = fmt.Sprintf("%q", strings.TrimSpace(m.separator))
+		case sectionDisplayMode:
+			detail = pet.DisplayModeLabel(m.displayMode)
 		}
 		text := item.label
 		if detail != "" {
@@ -753,6 +894,58 @@ func (m model) viewInstall(b *strings.Builder) {
 	b.WriteString(fmt.Sprintf("      %s\n", m.installStatus))
 	b.WriteString("\n")
 	nav(b, "press any key to return")
+}
+
+func (m model) viewDisplayMode(b *strings.Builder) {
+	header(b, "\U0001F4FA", "Display Mode")
+	nav(b, "esc back \u00b7 enter select")
+	b.WriteString("\n")
+
+	descs := map[pet.DisplayMode]string{
+		pet.ModeStandalone: "pet renders its own status line",
+		pet.ModePrepend:    "pet lines above wrapped command",
+		pet.ModeAppend:     "pet lines below wrapped command",
+	}
+
+	for i, dm := range pet.AllDisplayModes {
+		check := " "
+		if dm == m.displayMode {
+			check = checkStyle.Render("\u2713")
+		}
+		text := fmt.Sprintf("%s %s \u2014 %s", check, pet.DisplayModeLabel(dm), descs[dm])
+		row(b, i == m.displayCursor, "\U0001F4FA", text)
+	}
+}
+
+func (m model) viewWrapCommandPicker(b *strings.Builder) {
+	header(b, "\U0001F527", "Wrap Command")
+	nav(b, "esc back \u00b7 enter select")
+	b.WriteString("\n")
+
+	opts := wrapCommandOptions()
+	for i, opt := range opts {
+		check := " "
+		if !opt.custom && m.wrapCommand == opt.command {
+			check = checkStyle.Render("\u2713")
+		}
+		text := fmt.Sprintf("%s %s", check, opt.label)
+		if !opt.custom {
+			detail := dimStyle.Render(opt.command)
+			text += " " + detail
+		}
+		row(b, i == m.wrapPickerCursor, "\U0001F527", text)
+	}
+}
+
+func (m model) viewWrapCommandEdit(b *strings.Builder) {
+	header(b, "\U0001F527", "Wrap Command")
+	nav(b, "esc back \u00b7 enter save")
+	b.WriteString("\n")
+	b.WriteString(fmt.Sprintf("      %s%s\n",
+		accentStyle.Render(string(m.editBuf)),
+		cursorStyle.Render("\u2588")))
+	b.WriteString(dimStyle.Render("      command whose stdout is combined with pet lines"))
+	b.WriteString("\n")
 }
 
 func (m model) viewLinesPicker(b *strings.Builder) {

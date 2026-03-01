@@ -44,7 +44,7 @@ func SampleSegmentData(species Species, size Size) *SegmentData {
 		Changes: "(+12/-3)",
 		Cwd:     "~/project",
 		Dir:     "project",
-		Branch:  "main",
+		Branch:  "\u2325 main",
 	}
 }
 
@@ -161,7 +161,7 @@ func BuildSegmentData(s *State, claudeJSON map[string]any, barWidth int) *Segmen
 
 	// {branch}
 	if out, err := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output(); err == nil {
-		d.Branch = strings.TrimSpace(string(out))
+		d.Branch = "\u2325 " + strings.TrimSpace(string(out))
 	}
 
 	// {pet}

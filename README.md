@@ -52,6 +52,7 @@ make install
 ccpetline renders pets using emoji and Unicode characters. Your terminal needs:
 
 - An emoji-capable font (most modern terminals work out of the box)
+- If emojis don't render correctly, install [Noto Color Emoji](https://fonts.google.com/noto/specimen/Noto+Color+Emoji)
 - For best results, use a [Nerd Font](https://www.nerdfonts.com/) which includes extra glyphs
 
 ## Architecture

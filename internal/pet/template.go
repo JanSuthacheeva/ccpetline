@@ -27,7 +27,7 @@ type Segment struct {
 }
 
 // AllTokens is the ordered list of available template tokens.
-var AllTokens = []string{"pet", "mood", "snacks", "bar", "model", "ctx", "cost", "changes", "cwd", "branch"}
+var AllTokens = []string{"pet", "mood", "joy", "bar", "model", "ctx", "cost", "changes", "cwd", "branch"}
 
 // SampleSegmentData returns example values for preview rendering.
 func SampleSegmentData(species Species, size Size) *SegmentData {
@@ -247,7 +247,7 @@ func RenderTemplate(tmpl string, data *SegmentData) string {
 			return data.Ctx
 		case "bar":
 			return data.Bar
-		case "snacks":
+		case "joy":
 			return data.Snacks
 		case "cost":
 			return data.Cost

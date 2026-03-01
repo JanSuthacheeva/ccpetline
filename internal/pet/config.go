@@ -8,7 +8,7 @@ import (
 
 // DefaultLines is the default 2-line template layout.
 var DefaultLines = []string{
-	"{pet} {mood} | {snacks}",
+	"{pet} {mood} | {joy}",
 	"{bar}",
 }
 
@@ -109,7 +109,7 @@ func migrateConfig(c *Config) {
 
 	petLine := "{pet} {mood}"
 	if showSnacks {
-		petLine += " | {snacks}"
+		petLine += " | {joy}"
 	}
 
 	if c.SingleLine {

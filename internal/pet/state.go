@@ -193,8 +193,9 @@ type State struct {
 	Mood        Mood        `json:"mood"`
 	Size        Size        `json:"size"`
 	ContextPct  float64     `json:"context_pct"`
-	Happiness   int         `json:"happiness"`
-	LastEvent   time.Time   `json:"last_event"`
+	Happiness      int       `json:"happiness"`
+	LastEvent      time.Time `json:"last_event"`
+	LastMoodChange time.Time `json:"last_mood_change"`
 }
 
 func NewState() *State {
@@ -212,11 +213,16 @@ func NewState() *State {
 	}
 }
 
+const moodCooldown = 60 * time.Second
+
 // Feed processes a snack event.
 func (s *State) Feed(toolName string) {
 	s.Happiness++
-	s.Mood = ActiveMoods[rand.Intn(len(ActiveMoods))]
 	s.LastEvent = time.Now()
+	if time.Since(s.LastMoodChange) >= moodCooldown {
+		s.Mood = ActiveMoods[rand.Intn(len(ActiveMoods))]
+		s.LastMoodChange = time.Now()
+	}
 }
 
 // SetContext updates the context usage percentage and recalculates size.
@@ -228,7 +234,9 @@ func (s *State) SetContext(pct float64) {
 // Wake transitions from sleeping to bored.
 func (s *State) Wake() {
 	s.Mood = MoodBored
-	s.LastEvent = time.Now()
+	now := time.Now()
+	s.LastEvent = now
+	s.LastMoodChange = now
 }
 
 // Sleep transitions to sleeping mood.
@@ -239,8 +247,12 @@ func (s *State) Sleep() {
 
 // ComputeMood derives the current mood from the LastEvent timestamp.
 // This replaces the old Tick() loop — mood is computed on-read.
+// Mood changes are rate-limited to once per moodCooldown.
 func (s *State) ComputeMood() {
 	if s.Mood == MoodSleeping {
+		return
+	}
+	if time.Since(s.LastMoodChange) < moodCooldown {
 		return
 	}
 	elapsed := time.Since(s.LastEvent)
@@ -248,8 +260,10 @@ func (s *State) ComputeMood() {
 	switch {
 	case isActive && elapsed > 3*time.Second:
 		s.Mood = IdleMoods[rand.Intn(len(IdleMoods))]
+		s.LastMoodChange = time.Now()
 	case elapsed > 60*time.Second:
 		s.Mood = MoodSleeping
+		s.LastMoodChange = time.Now()
 	}
 }
 

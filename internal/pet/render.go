@@ -19,8 +19,8 @@ var foodEmojis = []string{
 	"\U0001F96F", // 🥯
 }
 
-// SnackEmoji returns a random food emoji.
-func SnackEmoji(_ string) string {
+// RandomFoodEmoji returns a random food emoji.
+func RandomFoodEmoji() string {
 	return foodEmojis[rand.Intn(len(foodEmojis))]
 }
 
@@ -51,7 +51,7 @@ func RenderEmoji(s *State) string {
 	base := SizeEmoji(s.Species, s.Size)
 	switch s.Mood {
 	case MoodEating:
-		return base + SnackEmoji(s.LastTool)
+		return base + RandomFoodEmoji()
 	case MoodChasing:
 		return base + "\U0001F4A8" // 💨
 	case MoodDigging:

@@ -9,9 +9,9 @@ func FormatPetLineKitty(s *State) string {
 		return RenderEmoji(s) + " " + s.Mood.String()
 	}
 	sprite := KittyInlinePNG(png)
-	suffix := fmt.Sprintf(" %s | snacks: %d", s.Mood.String(), s.Snacks)
-	if s.Mood == MoodEating {
-		suffix = SnackEmoji(s.LastTool) + suffix
+	suffix := fmt.Sprintf(" %s | Joy: %d", MoodLabel(s.Species, s.Mood), s.Happiness)
+	if s.Mood >= MoodEating && s.Mood <= MoodPouncing {
+		suffix = RandomFoodEmoji() + suffix
 	}
 	return sprite + suffix
 }

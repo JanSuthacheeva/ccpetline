@@ -102,7 +102,7 @@ func menuItems() []menuItem {
 var tokenEmoji = map[string]string{
 	"pet":     "\U0001F43E",
 	"mood":    "\U0001F60A",
-	"snacks":  "\U0001F36A",
+	"snacks":  "\U0001F496",
 	"bar":     "\U0001F4CA",
 	"model":   "\U0001F916",
 	"ctx":     "\U0001F4D0",

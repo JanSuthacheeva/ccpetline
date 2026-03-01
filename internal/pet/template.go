@@ -35,7 +35,7 @@ func SampleSegmentData(species Species, size Size) *SegmentData {
 	return &SegmentData{
 		Pet:     emoji,
 		Mood:    "bored",
-		Snacks:  "Snacks: 5",
+		Snacks:  "Joy: 5",
 		Bar:     strings.Repeat("\u2500", 3) + emoji + strings.Repeat("\u2500", 12) + " Ctx: 53.1%",
 		Model:   "Model: Opus 4",
 		Ctx:     "53%",
@@ -167,7 +167,7 @@ func BuildSegmentData(s *State, claudeJSON map[string]any, barWidth int) *Segmen
 	d.Mood = MoodLabel(s.Species, s.Mood)
 
 	// {snacks}
-	d.Snacks = fmt.Sprintf("Snacks: %d", s.Snacks)
+	d.Snacks = fmt.Sprintf("Joy: %d", s.Happiness)
 
 	// {bar}
 	d.Bar = FormatSeparator(s, barWidth)

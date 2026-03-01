@@ -51,9 +51,4 @@ func main() {
 	if err := pet.SaveState(statePath, state); err != nil {
 		os.Exit(1)
 	}
-
-	// Print snack flavor for fun (visible in hook logs)
-	if h.HookEventName == "PostToolUse" {
-		os.Stdout.WriteString(pet.SnackFlavor(h.ToolName) + "\n")
-	}
 }

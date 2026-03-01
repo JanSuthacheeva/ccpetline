@@ -192,9 +192,7 @@ type State struct {
 	Mood        Mood        `json:"mood"`
 	Size        Size        `json:"size"`
 	ContextPct  float64     `json:"context_pct"`
-	Snacks      int         `json:"snacks"`
-	LastSnack   string      `json:"last_snack"`
-	LastTool    string      `json:"last_tool"`
+	Happiness   int         `json:"happiness"`
 	LastEvent   time.Time   `json:"last_event"`
 }
 
@@ -214,9 +212,7 @@ func NewState() *State {
 
 // Feed processes a snack event.
 func (s *State) Feed(toolName string) {
-	s.Snacks++
-	s.LastSnack = SnackFlavor(toolName)
-	s.LastTool = toolName
+	s.Happiness++
 	s.Mood = ActiveMoods[rand.Intn(len(ActiveMoods))]
 	s.LastEvent = time.Now()
 }
@@ -312,22 +308,3 @@ func SaveState(path string, s *State) error {
 	return nil
 }
 
-// SnackFlavor maps a tool name to a fun snack name.
-func SnackFlavor(tool string) string {
-	switch tool {
-	case "Bash":
-		return "spicy taco"
-	case "Read":
-		return "mild salad"
-	case "Edit", "Write":
-		return "crunchy cookie"
-	case "Grep", "Glob":
-		return "popcorn"
-	case "Agent":
-		return "whole pizza"
-	case "WebFetch", "WebSearch":
-		return "sushi roll"
-	default:
-		return "mystery snack"
-	}
-}

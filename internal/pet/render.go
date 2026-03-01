@@ -76,16 +76,20 @@ func FormatSeparator(s *State, width int) string {
 		label = "Ctx(u)"
 	}
 
-	pos := int(displayPct / 100 * float64(width-1))
+	suffix := fmt.Sprintf(" %s: %.1f%%", label, displayPct)
+	barWidth := width - len(suffix)
+	if barWidth < 2 {
+		barWidth = 2
+	}
+	pos := int(displayPct / 100 * float64(barWidth-1))
 	if pos < 0 {
 		pos = 0
 	}
-	if pos > width-1 {
-		pos = width - 1
+	if pos > barWidth-1 {
+		pos = barWidth - 1
 	}
-	suffix := fmt.Sprintf(" %s: %.1f%%", label, displayPct)
 	left := strings.Repeat("\u2500", pos)
-	rightLen := width - 1 - pos - len(suffix)
+	rightLen := barWidth - 1 - pos
 	if rightLen < 0 {
 		rightLen = 0
 	}

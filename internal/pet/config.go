@@ -50,5 +50,28 @@ func SaveConfig(c *Config) error {
 	if err := os.WriteFile(tmp, data, 0644); err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	if err := os.Rename(tmp, path); err != nil {
+		return err
+	}
+	updateActiveSessions(c)
+	return nil
+}
+
+// updateActiveSessions patches all /tmp/claude-pet-state-*.json files
+// with the new config values so running sessions pick up changes immediately.
+func updateActiveSessions(c *Config) {
+	entries, err := os.ReadDir(stateDir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || len(name) < 18 || name[:16] != "claude-pet-state" || name[len(name)-5:] != ".json" {
+			continue
+		}
+		path := filepath.Join(stateDir, name)
+		state := LoadState(path)
+		state.Species = c.Species
+		_ = SaveState(path, state)
+	}
 }

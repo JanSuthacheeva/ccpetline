@@ -446,20 +446,33 @@ func installToClaudeCode() string {
 		}
 	}
 
-	want := map[string]interface{}{
+	// Status line
+	settings["statusLine"] = map[string]interface{}{
 		"type":    "command",
 		"command": "ccpetline",
 	}
 
-	if existing, ok := settings["statusLine"]; ok {
-		if m, ok := existing.(map[string]interface{}); ok {
-			if m["type"] == "command" && m["command"] == "ccpetline" {
-				return "Already installed!"
-			}
-		}
+	// Hooks — append to existing entries, skip if ccpetline-hook already present
+	hooks, _ := settings["hooks"].(map[string]interface{})
+	if hooks == nil {
+		hooks = make(map[string]interface{})
 	}
 
-	settings["statusLine"] = want
+	petHookEntry := map[string]interface{}{"type": "command", "command": "ccpetline-hook", "async": true}
+
+	// PostToolUse needs a matcher
+	appendHookEntry(hooks, "PostToolUse", map[string]interface{}{
+		"matcher": "*",
+		"hooks":   []interface{}{petHookEntry},
+	})
+	// SessionStart / SessionEnd have no matcher
+	simpleEntry := map[string]interface{}{
+		"hooks": []interface{}{petHookEntry},
+	}
+	appendHookEntry(hooks, "SessionStart", simpleEntry)
+	appendHookEntry(hooks, "SessionEnd", simpleEntry)
+
+	settings["hooks"] = hooks
 
 	out, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
@@ -475,6 +488,38 @@ func installToClaudeCode() string {
 	}
 
 	return "Installed! Restart Claude Code to activate."
+}
+
+// hookEntryHasPetline checks if a hook entry already references ccpetline-hook.
+func hookEntryHasPetline(entry interface{}) bool {
+	m, ok := entry.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	cmds, ok := m["hooks"].([]interface{})
+	if !ok {
+		return false
+	}
+	for _, cmd := range cmds {
+		if h, ok := cmd.(map[string]interface{}); ok {
+			if h["command"] == "ccpetline-hook" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// appendHookEntry appends a hook entry to the given event key, unless
+// ccpetline-hook is already present in any existing entry.
+func appendHookEntry(hooks map[string]interface{}, event string, entry map[string]interface{}) {
+	existing, _ := hooks[event].([]interface{})
+	for _, e := range existing {
+		if hookEntryHasPetline(e) {
+			return
+		}
+	}
+	hooks[event] = append(existing, entry)
 }
 
 func (m model) updateDisplayMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

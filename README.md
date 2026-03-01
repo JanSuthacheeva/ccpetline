@@ -2,13 +2,49 @@
 
 A terminal pet that lives alongside your Claude Code sessions. It eats tool calls as "snacks" and grows fatter as your context window fills up.
 
-## Quick start
+## Install
+
+One-liner:
 
 ```bash
-make install    # builds and copies binaries to ~/.local/bin
+curl -fsSL https://raw.githubusercontent.com/jansuthacheeva/ccpetline/main/install.sh | bash
 ```
 
-Then add hooks to `~/.claude/settings.json` (see `hooks.example.json`).
+Or pin a version:
+
+```bash
+VERSION=v0.0.1 curl -fsSL https://raw.githubusercontent.com/jansuthacheeva/ccpetline/main/install.sh | bash
+```
+
+After installing, run `ccpetline-config` and select **Install to Claude Code** to set up hooks and the status line automatically.
+
+### Manual install
+
+Download the binary for your platform from the [releases page](https://github.com/jansuthacheeva/ccpetline/releases), extract it, and copy the three binaries to a directory in your PATH.
+
+### Build from source
+
+```bash
+git clone https://github.com/jansuthacheeva/ccpetline.git
+cd ccpetline
+make install
+```
+
+## Features
+
+- **5 pets** -- cat, goose, dragon, dino, ocean creature
+- **Highly customizable** -- bar style, width, layout, colors, line templates with tokens
+- **Standalone or composable** -- use as a full status line, or prepend/append to an existing one
+- **Reactive** -- pet mood and size change dynamically based on tool use and context window fill
+- **TUI configurator** -- interactive setup via `ccpetline-config`, no JSON editing needed
+- **Zero dependencies** -- single static binaries, no runtime requirements
+
+## Emoji requirements
+
+ccpetline renders pets using emoji and Unicode characters. Your terminal needs:
+
+- An emoji-capable font (most modern terminals work out of the box)
+- For best results, use a [Nerd Font](https://www.nerdfonts.com/) which includes extra glyphs
 
 ## Architecture
 

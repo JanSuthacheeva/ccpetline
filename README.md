@@ -1,6 +1,6 @@
 # ccpetline
 
-A terminal pet that lives alongside your Claude Code sessions. It reacts to tool calls and grows fatter as your context window fills up.
+A terminal pet that lives alongside your Claude Code sessions. It reacts to tool calls and grows fatter as your context window fills up. Highly inspired by [ccstatusbar](https://github.com/mbenford/ccstatusbar).
 
 <p align="center">
   <img src="docs/images/statusline.png" alt="Status line with pet" width="600">

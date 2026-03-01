@@ -3,6 +3,7 @@ package pet
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"time"
@@ -60,21 +61,89 @@ type Mood int
 
 const (
 	MoodEating   Mood = iota
+	MoodChasing
+	MoodDigging
+	MoodFetching
+	MoodPouncing
 	MoodBored
+	MoodNapping
+	MoodGrooming
+	MoodWandering
 	MoodSleeping
 )
+
+var ActiveMoods = []Mood{MoodEating, MoodChasing, MoodDigging, MoodFetching, MoodPouncing}
+var IdleMoods = []Mood{MoodBored, MoodNapping, MoodGrooming, MoodWandering}
 
 func (m Mood) String() string {
 	switch m {
 	case MoodEating:
 		return "eating"
+	case MoodChasing:
+		return "chasing"
+	case MoodDigging:
+		return "digging"
+	case MoodFetching:
+		return "fetching"
+	case MoodPouncing:
+		return "pouncing"
 	case MoodBored:
 		return "bored"
+	case MoodNapping:
+		return "napping"
+	case MoodGrooming:
+		return "grooming"
+	case MoodWandering:
+		return "wandering"
 	case MoodSleeping:
 		return "sleeping"
 	default:
 		return "bored"
 	}
+}
+
+// moodLabels maps (species, mood) to species-flavored display labels.
+var moodLabels = map[Species]map[Mood]string{
+	SpeciesGoose: {
+		MoodEating: "gobbling", MoodChasing: "honk-chasing", MoodDigging: "pecking",
+		MoodFetching: "waddling", MoodPouncing: "flapping",
+		MoodBored: "bored", MoodNapping: "nesting", MoodGrooming: "preening",
+		MoodWandering: "waddling about", MoodSleeping: "sleeping",
+	},
+	SpeciesCat: {
+		MoodEating: "nibbling", MoodChasing: "pouncing", MoodDigging: "scratching",
+		MoodFetching: "batting", MoodPouncing: "leaping",
+		MoodBored: "bored", MoodNapping: "curling up", MoodGrooming: "grooming",
+		MoodWandering: "prowling", MoodSleeping: "sleeping",
+	},
+	SpeciesOcean: {
+		MoodEating: "gulping", MoodChasing: "darting", MoodDigging: "diving",
+		MoodFetching: "surfacing", MoodPouncing: "breaching",
+		MoodBored: "bored", MoodNapping: "floating", MoodGrooming: "gliding",
+		MoodWandering: "exploring", MoodSleeping: "sleeping",
+	},
+	SpeciesDragon: {
+		MoodEating: "devouring", MoodChasing: "swooping", MoodDigging: "burrowing",
+		MoodFetching: "hoarding", MoodPouncing: "striking",
+		MoodBored: "bored", MoodNapping: "smoldering", MoodGrooming: "polishing scales",
+		MoodWandering: "surveying", MoodSleeping: "sleeping",
+	},
+	SpeciesDino: {
+		MoodEating: "chomping", MoodChasing: "stomping", MoodDigging: "excavating",
+		MoodFetching: "lumbering", MoodPouncing: "charging",
+		MoodBored: "bored", MoodNapping: "dozing", MoodGrooming: "sunbathing",
+		MoodWandering: "roaming", MoodSleeping: "sleeping",
+	},
+}
+
+// MoodLabel returns a species-flavored display label for a mood.
+func MoodLabel(species Species, mood Mood) string {
+	if labels, ok := moodLabels[species]; ok {
+		if label, ok := labels[mood]; ok {
+			return label
+		}
+	}
+	return mood.String()
 }
 
 type Size int
@@ -148,7 +217,7 @@ func (s *State) Feed(toolName string) {
 	s.Snacks++
 	s.LastSnack = SnackFlavor(toolName)
 	s.LastTool = toolName
-	s.Mood = MoodEating
+	s.Mood = ActiveMoods[rand.Intn(len(ActiveMoods))]
 	s.LastEvent = time.Now()
 }
 
@@ -177,9 +246,10 @@ func (s *State) ComputeMood() {
 		return
 	}
 	elapsed := time.Since(s.LastEvent)
+	isActive := s.Mood >= MoodEating && s.Mood <= MoodPouncing
 	switch {
-	case s.Mood == MoodEating && elapsed > 3*time.Second:
-		s.Mood = MoodBored
+	case isActive && elapsed > 3*time.Second:
+		s.Mood = IdleMoods[rand.Intn(len(IdleMoods))]
 	case elapsed > 60*time.Second:
 		s.Mood = MoodSleeping
 	}

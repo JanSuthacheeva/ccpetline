@@ -53,10 +53,24 @@ func RenderEmoji(s *State) string {
 	switch s.Mood {
 	case MoodEating:
 		return base + SnackEmoji(s.LastTool)
+	case MoodChasing:
+		return base + "\U0001F41B" // 🐛
+	case MoodDigging:
+		return base + "\U0001F573\uFE0F" // 🕳️
+	case MoodFetching:
+		return base + "\U0001F9B4" // 🦴
+	case MoodPouncing:
+		return base + "\U0001F4A5" // 💥
 	case MoodBored:
-		return base + "\U0001F4AD" // thought bubble
+		return base + "\U0001F4AD" // 💭
+	case MoodNapping:
+		return base + "\U0001F634" // 😴
+	case MoodGrooming:
+		return base + "\u2728" // ✨
+	case MoodWandering:
+		return base + "\U0001F440" // 👀
 	case MoodSleeping:
-		return base + "\U0001F4A4" // zzz
+		return base + "\U0001F4A4" // 💤
 	default:
 		return base
 	}

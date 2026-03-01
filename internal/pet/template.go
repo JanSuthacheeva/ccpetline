@@ -164,7 +164,7 @@ func BuildSegmentData(s *State, claudeJSON map[string]any, barWidth int) *Segmen
 	d.Pet = RenderEmoji(s)
 
 	// {mood}
-	d.Mood = s.Mood.String()
+	d.Mood = MoodLabel(s.Species, s.Mood)
 
 	// {snacks}
 	d.Snacks = fmt.Sprintf("Snacks: %d", s.Snacks)

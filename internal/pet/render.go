@@ -58,7 +58,7 @@ func RenderEmoji(s *State) string {
 	case MoodDigging:
 		return base + "\U0001F573\uFE0F" // 🕳️
 	case MoodFetching:
-		return base + "\U0001F9B4" // 🦴
+		return base + "\U0001F4E6" // 📦
 	case MoodPouncing:
 		return base + "\U0001F4A5" // 💥
 	case MoodBored:

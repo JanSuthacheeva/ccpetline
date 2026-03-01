@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -186,13 +187,9 @@ func BuildSegmentData(s *State, claudeJSON map[string]any, barWidth int) *Segmen
 		}
 	}
 
-	// {changes}
-	if lines, ok := claudeJSON["lines_changed"].(map[string]any); ok {
-		added, _ := lines["added"].(float64)
-		removed, _ := lines["removed"].(float64)
-		if added > 0 || removed > 0 {
-			d.Changes = fmt.Sprintf("(+%.0f/-%.0f)", added, removed)
-		}
+	// {changes} — staged + unstaged git line changes
+	if added, removed, err := gitChanges(); err == nil {
+		d.Changes = fmt.Sprintf("(+%d/-%d)", added, removed)
 	}
 
 	return d
@@ -275,4 +272,31 @@ func RenderLines(s *State, claudeJSON map[string]any, barWidth int) []string {
 	}
 
 	return lines
+}
+
+// gitChanges returns added/removed line counts from both staged and unstaged changes.
+func gitChanges() (added, removed int, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	for _, args := range [][]string{
+		{"git", "diff", "--shortstat"},
+		{"git", "diff", "--cached", "--shortstat"},
+	} {
+		out, err := exec.CommandContext(ctx, args[0], args[1:]...).Output()
+		if err != nil {
+			continue
+		}
+		s := string(out)
+		if m := regexp.MustCompile(`(\d+) insertion`).FindStringSubmatch(s); len(m) > 1 {
+			if n, err := strconv.Atoi(m[1]); err == nil {
+				added += n
+			}
+		}
+		if m := regexp.MustCompile(`(\d+) deletion`).FindStringSubmatch(s); len(m) > 1 {
+			if n, err := strconv.Atoi(m[1]); err == nil {
+				removed += n
+			}
+		}
+	}
+	return added, removed, nil
 }

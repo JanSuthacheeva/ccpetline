@@ -38,12 +38,11 @@ func main() {
 	state.ComputeMood()
 	_ = pet.SaveState(statePath, state)
 
-	// Line 1: pet status
-	petLine := pet.FormatPetLine(state)
-	petLine = strings.ReplaceAll(petLine, " ", "\u00A0")
-	fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", petLine)
-	sep := pet.FormatSeparator(state, 50)
-	fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", sep)
+	// Pet status lines (1 or 2 depending on layout mode)
+	for _, line := range pet.FormatStatusLines(state, 50) {
+		line = strings.ReplaceAll(line, " ", "\u00A0")
+		fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", line)
+	}
 
 	// Remaining lines: delegate to ccstatusline, fall back to built-in
 	cmd := exec.Command("npx", "-y", "ccstatusline@latest")

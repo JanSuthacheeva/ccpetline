@@ -65,6 +65,9 @@ func RenderEmoji(s *State) string {
 // FormatSeparator returns a separator line with the pet emoji positioned by context %.
 func FormatSeparator(s *State, width int) string {
 	emoji := SizeEmoji(s.Species, s.Size)
+	if s.SingleLine {
+		emoji = RenderEmoji(s)
+	}
 
 	displayPct := s.ContextPct
 	label := "Ctx"
@@ -84,6 +87,9 @@ func FormatSeparator(s *State, width int) string {
 		pos = width - 1
 	}
 	suffix := fmt.Sprintf(" %s: %.1f%%", label, displayPct)
+	if s.SingleLine && s.ShowSnacks {
+		suffix += fmt.Sprintf(" | snacks: %d", s.Snacks)
+	}
 	left := strings.Repeat("\u2500", pos)
 	rightLen := width - 1 - pos - len(suffix)
 	if rightLen < 0 {
@@ -93,9 +99,21 @@ func FormatSeparator(s *State, width int) string {
 	return left + emoji + right + suffix
 }
 
-// FormatPetLine returns the single pet status line.
+// FormatStatusLines returns the pet status as 1 or 2 lines based on SingleLine setting.
+func FormatStatusLines(s *State, width int) []string {
+	if s.SingleLine {
+		return []string{FormatSeparator(s, width)}
+	}
+	return []string{FormatPetLine(s), FormatSeparator(s, width)}
+}
+
+// FormatPetLine returns the pet status line (above the separator).
 func FormatPetLine(s *State) string {
-	return fmt.Sprintf("%s %s | snacks: %d", RenderEmoji(s), s.Mood.String(), s.Snacks)
+	base := fmt.Sprintf("%s %s", RenderEmoji(s), s.Mood.String())
+	if s.ShowSnacks {
+		base += fmt.Sprintf(" | snacks: %d", s.Snacks)
+	}
+	return base
 }
 
 // FormatFallbackStatus returns a basic status line from Claude's JSON

@@ -9,6 +9,8 @@ import (
 type Config struct {
 	Species     Species     `json:"species"`
 	ContextMode ContextMode `json:"context_mode"`
+	ShowSnacks  *bool       `json:"show_snacks,omitempty"`
+	SingleLine  bool        `json:"single_line,omitempty"`
 }
 
 func ConfigPath() string {
@@ -19,24 +21,33 @@ func ConfigPath() string {
 	return filepath.Join(home, ".claude-pet", "config.json")
 }
 
+func defaultConfig() *Config {
+	t := true
+	return &Config{Species: SpeciesGoose, ContextMode: ContextModeCtx, ShowSnacks: &t}
+}
+
 func LoadConfig() *Config {
 	path := ConfigPath()
 	if path == "" {
-		return &Config{Species: SpeciesGoose, ContextMode: ContextModeCtx}
+		return defaultConfig()
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return &Config{Species: SpeciesGoose, ContextMode: ContextModeCtx}
+		return defaultConfig()
 	}
 	var c Config
 	if err := json.Unmarshal(data, &c); err != nil {
-		return &Config{Species: SpeciesGoose, ContextMode: ContextModeCtx}
+		return defaultConfig()
 	}
 	if c.Species == "" {
 		c.Species = SpeciesGoose
 	}
 	if c.ContextMode == "" {
 		c.ContextMode = ContextModeCtx
+	}
+	if c.ShowSnacks == nil {
+		t := true
+		c.ShowSnacks = &t
 	}
 	return &c
 }
@@ -77,6 +88,8 @@ func updateActiveSessions(c *Config) {
 		state := LoadState(path)
 		state.Species = c.Species
 		state.ContextMode = c.ContextMode
+		state.ShowSnacks = c.ShowSnacks != nil && *c.ShowSnacks
+		state.SingleLine = c.SingleLine
 		_ = SaveState(path, state)
 	}
 }

@@ -24,6 +24,8 @@ type section int
 const (
 	sectionSpecies section = iota
 	sectionContextMode
+	sectionShowSnacks
+	sectionLayout
 )
 
 type speciesOption struct {
@@ -34,6 +36,12 @@ type speciesOption struct {
 
 type contextModeOption struct {
 	mode  pet.ContextMode
+	label string
+	desc  string
+}
+
+type boolOption struct {
+	value bool
 	label string
 	desc  string
 }
@@ -65,11 +73,19 @@ type model struct {
 	section        section
 	options        []speciesOption
 	ctxOptions     []contextModeOption
+	snackOptions   []boolOption
+	layoutOptions  []boolOption
 	cursor         int
 	ctxCursor      int
+	snackCursor    int
+	layoutCursor   int
 	current        pet.Species
 	currentCtxMode pet.ContextMode
+	currentSnacks  bool
+	currentLayout  bool // true = single line
 	chosenSpecies  pet.Species
+	chosenCtxMode  pet.ContextMode
+	chosenSnacks   bool
 	saved          bool
 	quitting       bool
 }
@@ -92,14 +108,37 @@ func initialModel() model {
 			break
 		}
 	}
+	showSnacks := cfg.ShowSnacks == nil || *cfg.ShowSnacks
+	snackOpts := []boolOption{
+		{value: true, label: "Yes", desc: "show snack counter"},
+		{value: false, label: "No", desc: "hide snack counter"},
+	}
+	snackCursor := 0
+	if !showSnacks {
+		snackCursor = 1
+	}
+	layoutOpts := []boolOption{
+		{value: false, label: "Two lines", desc: "pet status + context bar"},
+		{value: true, label: "Single line", desc: "compact context bar only"},
+	}
+	layoutCursor := 0
+	if cfg.SingleLine {
+		layoutCursor = 1
+	}
 	return model{
 		section:        sectionSpecies,
 		options:        opts,
 		ctxOptions:     ctxOpts,
+		snackOptions:   snackOpts,
+		layoutOptions:  layoutOpts,
 		cursor:         cursor,
 		ctxCursor:      ctxCursor,
+		snackCursor:    snackCursor,
+		layoutCursor:   layoutCursor,
 		current:        cfg.Species,
 		currentCtxMode: cfg.ContextMode,
+		currentSnacks:  showSnacks,
+		currentLayout:  cfg.SingleLine,
 	}
 }
 
@@ -115,42 +154,78 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 		case "up", "k":
-			if m.section == sectionSpecies {
+			switch m.section {
+			case sectionSpecies:
 				if m.cursor > 0 {
 					m.cursor--
 				}
-			} else {
+			case sectionContextMode:
 				if m.ctxCursor > 0 {
 					m.ctxCursor--
 				}
+			case sectionShowSnacks:
+				if m.snackCursor > 0 {
+					m.snackCursor--
+				}
+			case sectionLayout:
+				if m.layoutCursor > 0 {
+					m.layoutCursor--
+				}
 			}
 		case "down", "j":
-			if m.section == sectionSpecies {
+			switch m.section {
+			case sectionSpecies:
 				if m.cursor < len(m.options)-1 {
 					m.cursor++
 				}
-			} else {
+			case sectionContextMode:
 				if m.ctxCursor < len(m.ctxOptions)-1 {
 					m.ctxCursor++
 				}
+			case sectionShowSnacks:
+				if m.snackCursor < len(m.snackOptions)-1 {
+					m.snackCursor++
+				}
+			case sectionLayout:
+				if m.layoutCursor < len(m.layoutOptions)-1 {
+					m.layoutCursor++
+				}
 			}
 		case "enter":
-			if m.section == sectionSpecies {
+			switch m.section {
+			case sectionSpecies:
 				m.chosenSpecies = m.options[m.cursor].species
 				m.section = sectionContextMode
 				return m, nil
-			}
-			chosenMode := m.ctxOptions[m.ctxCursor].mode
-			cfg := &pet.Config{Species: m.chosenSpecies, ContextMode: chosenMode}
-			if err := pet.SaveConfig(cfg); err != nil {
-				fmt.Fprintf(os.Stderr, "Error saving config: %v\n", err)
+			case sectionContextMode:
+				m.chosenCtxMode = m.ctxOptions[m.ctxCursor].mode
+				m.section = sectionShowSnacks
+				return m, nil
+			case sectionShowSnacks:
+				m.chosenSnacks = m.snackOptions[m.snackCursor].value
+				m.section = sectionLayout
+				return m, nil
+			case sectionLayout:
+				chosenLayout := m.layoutOptions[m.layoutCursor].value
+				showSnacks := m.chosenSnacks
+				cfg := &pet.Config{
+					Species:     m.chosenSpecies,
+					ContextMode: m.chosenCtxMode,
+					ShowSnacks:  &showSnacks,
+					SingleLine:  chosenLayout,
+				}
+				if err := pet.SaveConfig(cfg); err != nil {
+					fmt.Fprintf(os.Stderr, "Error saving config: %v\n", err)
+					return m, tea.Quit
+				}
+				m.current = m.chosenSpecies
+				m.currentCtxMode = m.chosenCtxMode
+				m.currentSnacks = showSnacks
+				m.currentLayout = chosenLayout
+				m.saved = true
+				m.quitting = true
 				return m, tea.Quit
 			}
-			m.current = m.chosenSpecies
-			m.currentCtxMode = chosenMode
-			m.saved = true
-			m.quitting = true
-			return m, tea.Quit
 		}
 	}
 	return m, nil
@@ -160,7 +235,10 @@ func (m model) View() string {
 	if m.saved {
 		opt := m.options[m.cursor]
 		ctxOpt := m.ctxOptions[m.ctxCursor]
-		return savedStyle.Render(fmt.Sprintf("Saved! Pet: %s %s | Context: %s", opt.label, opt.preview, ctxOpt.label)) + "\n"
+		snackOpt := m.snackOptions[m.snackCursor]
+		layoutOpt := m.layoutOptions[m.layoutCursor]
+		return savedStyle.Render(fmt.Sprintf("Saved! Pet: %s %s | Context: %s | Snacks: %s | Layout: %s",
+			opt.label, opt.preview, ctxOpt.label, snackOpt.label, layoutOpt.label)) + "\n"
 	}
 	if m.quitting {
 		return ""
@@ -189,7 +267,7 @@ func (m model) View() string {
 				b.WriteString(fmt.Sprintf("%s%s  %s\n", cursor, dimStyle.Render(name), dimStyle.Render(opt.preview)))
 			}
 		}
-	} else {
+	} else if m.section == sectionContextMode {
 		b.WriteString(titleStyle.Render("Context bar mode"))
 		b.WriteString("\n\n")
 
@@ -206,6 +284,50 @@ func (m model) View() string {
 			detail := fmt.Sprintf("%s — %s", name, opt.desc)
 
 			if i == m.ctxCursor {
+				b.WriteString(fmt.Sprintf("%s%s\n", cursor, selectedStyle.Render(detail)))
+			} else {
+				b.WriteString(fmt.Sprintf("%s%s\n", cursor, dimStyle.Render(detail)))
+			}
+		}
+	} else if m.section == sectionShowSnacks {
+		b.WriteString(titleStyle.Render("Show snack counter?"))
+		b.WriteString("\n\n")
+
+		for i, opt := range m.snackOptions {
+			cursor := "  "
+			if i == m.snackCursor {
+				cursor = cursorStyle.Render("> ")
+			}
+
+			name := opt.label
+			if opt.value == m.currentSnacks {
+				name += " (current)"
+			}
+			detail := fmt.Sprintf("%s — %s", name, opt.desc)
+
+			if i == m.snackCursor {
+				b.WriteString(fmt.Sprintf("%s%s\n", cursor, selectedStyle.Render(detail)))
+			} else {
+				b.WriteString(fmt.Sprintf("%s%s\n", cursor, dimStyle.Render(detail)))
+			}
+		}
+	} else {
+		b.WriteString(titleStyle.Render("Layout"))
+		b.WriteString("\n\n")
+
+		for i, opt := range m.layoutOptions {
+			cursor := "  "
+			if i == m.layoutCursor {
+				cursor = cursorStyle.Render("> ")
+			}
+
+			name := opt.label
+			if opt.value == m.currentLayout {
+				name += " (current)"
+			}
+			detail := fmt.Sprintf("%s — %s", name, opt.desc)
+
+			if i == m.layoutCursor {
 				b.WriteString(fmt.Sprintf("%s%s\n", cursor, selectedStyle.Render(detail)))
 			} else {
 				b.WriteString(fmt.Sprintf("%s%s\n", cursor, dimStyle.Render(detail)))

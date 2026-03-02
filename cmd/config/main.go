@@ -15,16 +15,16 @@ import (
 )
 
 var (
-	titleStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
-	accentStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
-	cursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
-	dimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("242"))
-	hintStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Italic(true)
-	valueStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("114"))
-	checkStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
+	titleStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "55", Dark: "99"})
+	accentStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "162", Dark: "212"})
+	cursorStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "162", Dark: "212"}).Bold(true)
+	dimStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "239", Dark: "252"})
+	hintStyle   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "236", Dark: "255"}).Italic(true)
+	valueStyle  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "28", Dark: "114"})
+	checkStyle  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "22", Dark: "78"})
 	boxStyle    = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("63")).
+			BorderForeground(lipgloss.AdaptiveColor{Light: "55", Dark: "63"}).
 			Padding(0, 1)
 )
 

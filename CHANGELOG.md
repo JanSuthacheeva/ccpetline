@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.4
+
+- Use AdaptiveColor for light/dark terminal support in TUI config
+- Show updating overlay while download runs in background
+- Show update success screen instead of auto-closing TUI
+- Recommend Noto Color Emoji as fallback font in README
+
 ## 0.0.3
 
 - Show version number in TUI config heading

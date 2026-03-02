@@ -131,3 +131,7 @@ echo '{}' | ./bin/ccpetline
 ## Configuration
 
 Run `ccpetline-config` to open the TUI configurator. Config is stored in `~/.ccpetline/config.json`.
+
+## License
+
+[MIT](LICENSE)

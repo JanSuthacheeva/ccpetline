@@ -230,6 +230,7 @@ type model struct {
 	latestVersion   string
 	updateAvailable bool
 	updateStatus    string
+	updateWaitKey   bool
 
 	quitting bool
 }
@@ -448,7 +449,7 @@ func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if err := pet.SelfUpdate(m.latestVersion); err != nil {
 				m.updateStatus = fmt.Sprintf("Error: %v", err)
 			} else {
-				m.updateStatus = "Updated successfully!"
+				m.updateStatus = "Update installed successfully."
 			}
 			return m, nil
 		}
@@ -470,6 +471,10 @@ func (m model) updateInstall(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) updateUpdateResult(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if !m.updateWaitKey {
+		m.updateWaitKey = true
+		return m, nil
+	}
 	if strings.HasPrefix(m.updateStatus, "Error:") {
 		m.section = sectionMenu
 		return m, nil
@@ -1357,14 +1362,15 @@ func (m model) viewUpdate(b *strings.Builder) {
 	}
 	b.WriteString("\n")
 	changelogURL := fmt.Sprintf("https://github.com/jansuthacheeva/ccpetline/releases/tag/%s", m.latestVersion)
-	b.WriteString(fmt.Sprintf("      Changelog: %s\n", dimStyle.Render(changelogURL)))
-	b.WriteString("\n")
 	if strings.HasPrefix(m.updateStatus, "Error:") {
+		b.WriteString(fmt.Sprintf("      Changelog: %s\n", dimStyle.Render(changelogURL)))
+		b.WriteString("\n")
 		nav(b, "press any key to return")
 	} else {
-		b.WriteString("      Please restart ccpetline-config to use the new version.\n")
+		b.WriteString(fmt.Sprintf("      You can read more about the changes here:\n"))
+		b.WriteString(fmt.Sprintf("      %s\n", dimStyle.Render(changelogURL)))
 		b.WriteString("\n")
-		nav(b, "press any key to quit")
+		nav(b, "press any key to close")
 	}
 }
 

@@ -334,6 +334,10 @@ type versionMsg struct {
 	latest string
 }
 
+type updateDoneMsg struct {
+	err error
+}
+
 func checkVersionCmd() tea.Msg {
 	latest, err := pet.CheckLatestRelease()
 	if err != nil || latest == "" {
@@ -352,6 +356,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.latest != "" {
 			m.latestVersion = msg.latest
 			m.updateAvailable = true
+		}
+		return m, nil
+	case updateDoneMsg:
+		if msg.err != nil {
+			m.updateStatus = fmt.Sprintf("Error: %v", msg.err)
+		} else {
+			m.updateStatus = "Update installed successfully."
 		}
 		return m, nil
 	case tea.KeyMsg:
@@ -446,12 +457,10 @@ func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if dest == sectionUpdate {
 			m.updateStatus = ""
 			m.section = sectionUpdate
-			if err := pet.SelfUpdate(m.latestVersion); err != nil {
-				m.updateStatus = fmt.Sprintf("Error: %v", err)
-			} else {
-				m.updateStatus = "Update installed successfully."
+			tag := m.latestVersion
+			return m, func() tea.Msg {
+				return updateDoneMsg{err: pet.SelfUpdate(tag)}
 			}
-			return m, nil
 		}
 		if dest == sectionSeparator {
 			m.editBuf = []rune(strings.TrimSpace(m.separator))

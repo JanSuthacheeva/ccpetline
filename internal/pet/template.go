@@ -54,8 +54,8 @@ func SampleSegmentData(species Species, size Size, barStyle BarStyle, barShowPet
 		Cwd:     "~/project",
 		Dir:     "project",
 		Branch:  "\u2325 main",
-		Limit5h:    "5h: 24%",
-		Limit7d:    "7d: 41%",
+		Limit5h:    "5h: 24% (reset in 2h 14m)",
+		Limit7d:    "7d: 41% (reset in 3d 5h)",
 		Limit5hBar: renderBarLine(24, " 5h: 24%", barStyle, barWidth),
 		Limit7dBar: renderBarLine(41, " 7d: 41%", barStyle, barWidth),
 	}
@@ -225,8 +225,9 @@ func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
 	// Absent until the first API response of the session; each window
 	// may be independently missing, so resolve them separately.
 	if rl, ok := claudeJSON["rate_limits"].(map[string]any); ok {
-		d.Limit5h = formatRateLimit(rl, "five_hour", "5h")
-		d.Limit7d = formatRateLimit(rl, "seven_day", "7d")
+		now := time.Now()
+		d.Limit5h = formatRateLimit(rl, "five_hour", "5h", now)
+		d.Limit7d = formatRateLimit(rl, "seven_day", "7d", now)
 		d.Limit5hBar = formatRateLimitBar(rl, "five_hour", "5h", s)
 		d.Limit7dBar = formatRateLimitBar(rl, "seven_day", "7d", s)
 	}
@@ -239,9 +240,10 @@ func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
 	return d
 }
 
-// formatRateLimit renders one rate limit window as "<label>: <pct>%",
-// or "" when the window is absent from the JSON.
-func formatRateLimit(rateLimits map[string]any, window, label string) string {
+// formatRateLimit renders one rate limit window as
+// "<label>: <pct>% (reset in <duration>)", or "" when the window is absent.
+// The reset part is omitted when resets_at is missing or already passed.
+func formatRateLimit(rateLimits map[string]any, window, label string, now time.Time) string {
 	w, ok := rateLimits[window].(map[string]any)
 	if !ok {
 		return ""
@@ -250,7 +252,28 @@ func formatRateLimit(rateLimits map[string]any, window, label string) string {
 	if !ok {
 		return ""
 	}
-	return fmt.Sprintf("%s: %.0f%%", label, pct)
+	out := fmt.Sprintf("%s: %.0f%%", label, pct)
+	if resetsAt, ok := w["resets_at"].(float64); ok {
+		if remaining := time.Unix(int64(resetsAt), 0).Sub(now); remaining > 0 {
+			out += fmt.Sprintf(" (reset in %s)", formatDuration(remaining))
+		}
+	}
+	return out
+}
+
+// formatDuration renders a duration compactly: "37m", "2h 14m", "3d 5h".
+func formatDuration(d time.Duration) string {
+	days := int(d.Hours()) / 24
+	hours := int(d.Hours()) % 24
+	mins := int(d.Minutes()) % 60
+	switch {
+	case days > 0:
+		return fmt.Sprintf("%dd %dh", days, hours)
+	case hours > 0:
+		return fmt.Sprintf("%dh %dm", hours, mins)
+	default:
+		return fmt.Sprintf("%dm", mins)
+	}
 }
 
 // formatRateLimitBar renders one rate limit window as a progress bar using

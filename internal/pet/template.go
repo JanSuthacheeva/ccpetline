@@ -28,7 +28,7 @@ type Segment struct {
 }
 
 // AllTokens is the ordered list of available template tokens.
-var AllTokens = []string{"pet", "mood", "joy", "bar", "model", "ctx", "cost", "changes", "cwd", "dir", "branch", "5h", "7d"}
+var AllTokens = []string{"pet", "mood", "joy", "bar", "model", "ctx", "cost", "changes", "cwd", "dir", "branch", "5h", "7d", "5h_bar", "7d_bar"}
 
 // SampleSegmentData returns example values for preview rendering.
 func SampleSegmentData(species Species, size Size, barStyle BarStyle, barShowPet bool, barWidth int) *SegmentData {
@@ -54,8 +54,10 @@ func SampleSegmentData(species Species, size Size, barStyle BarStyle, barShowPet
 		Cwd:     "~/project",
 		Dir:     "project",
 		Branch:  "\u2325 main",
-		Limit5h: "5h: 24%",
-		Limit7d: "7d: 41%",
+		Limit5h:    "5h: 24%",
+		Limit7d:    "7d: 41%",
+		Limit5hBar: renderBarLine(24, " 5h: 24%", barStyle, barWidth),
+		Limit7dBar: renderBarLine(41, " 7d: 41%", barStyle, barWidth),
 	}
 }
 
@@ -154,8 +156,10 @@ type SegmentData struct {
 	Bar     string
 	Snacks  string
 	Cost    string
-	Limit5h string
-	Limit7d string
+	Limit5h    string
+	Limit7d    string
+	Limit5hBar string
+	Limit7dBar string
 }
 
 // BuildSegmentData resolves all token values from state, Claude JSON, and OS.
@@ -223,6 +227,8 @@ func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
 	if rl, ok := claudeJSON["rate_limits"].(map[string]any); ok {
 		d.Limit5h = formatRateLimit(rl, "five_hour", "5h")
 		d.Limit7d = formatRateLimit(rl, "seven_day", "7d")
+		d.Limit5hBar = formatRateLimitBar(rl, "five_hour", "5h", s)
+		d.Limit7dBar = formatRateLimitBar(rl, "seven_day", "7d", s)
 	}
 
 	// {changes} — staged + unstaged git line changes
@@ -245,6 +251,21 @@ func formatRateLimit(rateLimits map[string]any, window, label string) string {
 		return ""
 	}
 	return fmt.Sprintf("%s: %.0f%%", label, pct)
+}
+
+// formatRateLimitBar renders one rate limit window as a progress bar using
+// the configured bar style and width, or "" when the window is absent.
+func formatRateLimitBar(rateLimits map[string]any, window, label string, s *State) string {
+	w, ok := rateLimits[window].(map[string]any)
+	if !ok {
+		return ""
+	}
+	pct, ok := w["used_percentage"].(float64)
+	if !ok {
+		return ""
+	}
+	suffix := fmt.Sprintf(" %s: %.0f%%", label, pct)
+	return renderBarLine(pct, suffix, s.BarStyle, s.BarWidth)
 }
 
 // ColorSegment wraps text in ANSI 256-color escape codes.
@@ -285,6 +306,10 @@ func resolveToken(key string, data *SegmentData) string {
 		return data.Limit5h
 	case "7d":
 		return data.Limit7d
+	case "5h_bar":
+		return data.Limit5hBar
+	case "7d_bar":
+		return data.Limit7dBar
 	default:
 		return "{" + key + "}"
 	}

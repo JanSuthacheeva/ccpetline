@@ -127,6 +127,8 @@ var tokenEmoji = map[string]string{
 	"branch":  "\U0001F33F",
 	"5h":      "⏳",
 	"7d":      "\U0001F4C5",
+	"5h_bar":  "⏳",
+	"7d_bar":  "\U0001F4C5",
 }
 
 // colorPalette is the curated set of ANSI 256 colors available in the picker.

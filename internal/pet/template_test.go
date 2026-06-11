@@ -53,6 +53,33 @@ func TestBuildSegmentDataRateLimits(t *testing.T) {
 	}
 }
 
+func TestBuildSegmentDataRateLimitBars(t *testing.T) {
+	s := &State{Species: SpeciesGoose, Size: SizeNormal, BarStyle: BarBlock, BarWidth: 30}
+	claudeJSON := map[string]any{
+		"rate_limits": map[string]any{
+			"five_hour": map[string]any{"used_percentage": 50.0},
+		},
+	}
+
+	d := BuildSegmentData(s, claudeJSON)
+	want := renderBarLine(50, " 5h: 50%", BarBlock, 30)
+	if d.Limit5hBar != want {
+		t.Errorf("Limit5hBar = %q, want %q", d.Limit5hBar, want)
+	}
+	if d.Limit7dBar != "" {
+		t.Errorf("Limit7dBar = %q, want empty for absent window", d.Limit7dBar)
+	}
+}
+
+func TestRenderBarLine(t *testing.T) {
+	got := renderBarLine(50, " 5h: 50%", BarBlock, 28)
+	// 28 total - 8 suffix bytes = 20 bar chars, half filled.
+	want := "▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░ 5h: 50%"
+	if got != want {
+		t.Errorf("renderBarLine = %q, want %q", got, want)
+	}
+}
+
 func TestRenderTemplateRateLimitTokens(t *testing.T) {
 	data := &SegmentData{Limit5h: "5h: 9%", Limit7d: "7d: 41%"}
 

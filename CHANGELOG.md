@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- New tokens `{5h}` and `{7d}` showing Claude subscription rate limit usage (5-hour and weekly windows)
+- New tokens `{5h_bar}` and `{7d_bar}` rendering the limits as progress bars using the configured bar style and width
+- Tokens render empty until Claude Code provides `rate_limits` (first API response of the session)
+
 ## 0.0.4
 
 - Use AdaptiveColor for light/dark terminal support in TUI config

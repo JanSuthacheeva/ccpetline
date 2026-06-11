@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.5
 
 - New tokens `{5h}` and `{7d}` showing Claude subscription rate limit usage with reset countdown, e.g. `5h: 13% (reset in 2h 14m)`
 - New tokens `{5h_bar}` and `{7d_bar}` rendering the limits as progress bars using the configured bar style and width

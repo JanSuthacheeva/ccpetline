@@ -83,6 +83,34 @@ var barChars = map[BarStyle][2]string{
 	BarDot:     {"\u25CF", "\u25CB"},
 }
 
+// renderBarLine renders a plain progress bar filled to pct with the suffix
+// appended, so that bar plus suffix occupy the given total width.
+func renderBarLine(pct float64, suffix string, style BarStyle, width int) string {
+	if width < 20 {
+		width = 50
+	}
+
+	chars, ok := barChars[style]
+	if !ok {
+		chars = barChars[BarClassic]
+	}
+	filled, empty := chars[0], chars[1]
+
+	barWidth := width - len(suffix)
+	if barWidth < 2 {
+		barWidth = 2
+	}
+
+	filledLen := int(pct / 100 * float64(barWidth))
+	if filledLen < 0 {
+		filledLen = 0
+	}
+	if filledLen > barWidth {
+		filledLen = barWidth
+	}
+	return strings.Repeat(filled, filledLen) + strings.Repeat(empty, barWidth-filledLen) + suffix
+}
+
 // FormatSeparator returns a separator line with the pet emoji positioned by context %.
 func FormatSeparator(s *State) string {
 	width := s.BarWidth
@@ -130,12 +158,5 @@ func FormatSeparator(s *State) string {
 		return left + emoji + right + suffix
 	}
 
-	filledLen := int(displayPct / 100 * float64(barWidth))
-	if filledLen < 0 {
-		filledLen = 0
-	}
-	if filledLen > barWidth {
-		filledLen = barWidth
-	}
-	return strings.Repeat(filled, filledLen) + strings.Repeat(empty, barWidth-filledLen) + suffix
+	return renderBarLine(displayPct, suffix, s.BarStyle, width)
 }

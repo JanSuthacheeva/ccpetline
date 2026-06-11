@@ -118,6 +118,7 @@ var tokenEmoji = map[string]string{
 	"mood":    "\U0001F60A",
 	"joy":     "\U0001F496",
 	"bar":     "\U0001F4CA",
+	"ctx_bar": "\U0001F4CA",
 	"model":   "\U0001F916",
 	"ctx":     "\U0001F4D0",
 	"cost":    "\U0001F4B0",
@@ -125,6 +126,10 @@ var tokenEmoji = map[string]string{
 	"cwd":     "\U0001F4C2",
 	"dir":     "\U0001F4C1",
 	"branch":  "\U0001F33F",
+	"5h":      "⏳",
+	"7d":      "\U0001F4C5",
+	"5h_bar":  "\U0001F4CA",
+	"7d_bar":  "\U0001F4CA",
 }
 
 // colorPalette is the curated set of ANSI 256 colors available in the picker.

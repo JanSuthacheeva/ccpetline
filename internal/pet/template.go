@@ -28,7 +28,7 @@ type Segment struct {
 }
 
 // AllTokens is the ordered list of available template tokens.
-var AllTokens = []string{"pet", "mood", "joy", "bar", "model", "ctx", "cost", "changes", "cwd", "dir", "branch"}
+var AllTokens = []string{"pet", "mood", "joy", "bar", "model", "ctx", "cost", "changes", "cwd", "dir", "branch", "5h", "7d"}
 
 // SampleSegmentData returns example values for preview rendering.
 func SampleSegmentData(species Species, size Size, barStyle BarStyle, barShowPet bool, barWidth int) *SegmentData {
@@ -54,6 +54,8 @@ func SampleSegmentData(species Species, size Size, barStyle BarStyle, barShowPet
 		Cwd:     "~/project",
 		Dir:     "project",
 		Branch:  "\u2325 main",
+		Limit5h: "5h: 24%",
+		Limit7d: "7d: 41%",
 	}
 }
 
@@ -152,6 +154,8 @@ type SegmentData struct {
 	Bar     string
 	Snacks  string
 	Cost    string
+	Limit5h string
+	Limit7d string
 }
 
 // BuildSegmentData resolves all token values from state, Claude JSON, and OS.
@@ -213,12 +217,34 @@ func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
 		}
 	}
 
+	// {5h} and {7d} — subscription rate limit usage.
+	// Absent until the first API response of the session; each window
+	// may be independently missing, so resolve them separately.
+	if rl, ok := claudeJSON["rate_limits"].(map[string]any); ok {
+		d.Limit5h = formatRateLimit(rl, "five_hour", "5h")
+		d.Limit7d = formatRateLimit(rl, "seven_day", "7d")
+	}
+
 	// {changes} — staged + unstaged git line changes
 	if added, removed, err := gitChanges(); err == nil {
 		d.Changes = fmt.Sprintf("(+%d/-%d)", added, removed)
 	}
 
 	return d
+}
+
+// formatRateLimit renders one rate limit window as "<label>: <pct>%",
+// or "" when the window is absent from the JSON.
+func formatRateLimit(rateLimits map[string]any, window, label string) string {
+	w, ok := rateLimits[window].(map[string]any)
+	if !ok {
+		return ""
+	}
+	pct, ok := w["used_percentage"].(float64)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("%s: %.0f%%", label, pct)
 }
 
 // ColorSegment wraps text in ANSI 256-color escape codes.
@@ -255,6 +281,10 @@ func resolveToken(key string, data *SegmentData) string {
 		return data.Snacks
 	case "cost":
 		return data.Cost
+	case "5h":
+		return data.Limit5h
+	case "7d":
+		return data.Limit7d
 	default:
 		return "{" + key + "}"
 	}

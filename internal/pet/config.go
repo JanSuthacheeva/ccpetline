@@ -9,7 +9,7 @@ import (
 // DefaultLines is the default 2-line template layout.
 var DefaultLines = []string{
 	"{cwd} | {branch} | {changes} | {model}",
-	"{bar} | {pet} {mood}",
+	"{ctx_bar} | {pet} {mood}",
 }
 
 // DefaultSeparator is the default token separator.

@@ -28,7 +28,7 @@ type Segment struct {
 }
 
 // AllTokens is the ordered list of available template tokens.
-var AllTokens = []string{"pet", "mood", "joy", "bar", "model", "ctx", "cost", "changes", "cwd", "dir", "branch", "5h", "7d", "5h_bar", "7d_bar"}
+var AllTokens = []string{"pet", "mood", "joy", "ctx_bar", "model", "ctx", "cost", "changes", "cwd", "dir", "branch", "5h", "7d", "5h_bar", "7d_bar"}
 
 // SampleSegmentData returns example values for preview rendering.
 func SampleSegmentData(species Species, size Size, barStyle BarStyle, barShowPet bool, barWidth int) *SegmentData {
@@ -319,7 +319,7 @@ func resolveToken(key string, data *SegmentData) string {
 		return data.Model
 	case "ctx":
 		return data.Ctx
-	case "bar":
+	case "ctx_bar", "bar": // "bar" kept as alias for configs written before the rename
 		return data.Bar
 	case "joy":
 		return data.Snacks

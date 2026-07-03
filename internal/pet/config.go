@@ -63,9 +63,10 @@ func DisplayModeLabel(m DisplayMode) string {
 type Config struct {
 	Species     Species     `json:"species"`
 	ContextMode ContextMode `json:"context_mode"`
+	IconTheme   IconTheme   `json:"icon_theme,omitempty"`
 	Separator   string      `json:"separator"`
-	Lines      []string    `json:"lines,omitempty"`
-	LineColors [][]uint8   `json:"line_colors,omitempty"`
+	Lines       []string    `json:"lines,omitempty"`
+	LineColors  [][]uint8   `json:"line_colors,omitempty"`
 	DisplayMode DisplayMode `json:"display_mode,omitempty"`
 	WrapCommand string      `json:"wrap_command,omitempty"`
 	BarStyle    BarStyle    `json:"bar_style,omitempty"`
@@ -95,6 +96,7 @@ func defaultConfig() *Config {
 	return &Config{
 		Species:     SpeciesCat,
 		ContextMode: ContextModeCtx,
+		IconTheme:   IconThemeText,
 		Separator:   DefaultSeparator,
 		Lines:       DefaultLines,
 		BarStyle:    BarThin,
@@ -121,6 +123,9 @@ func LoadConfig() *Config {
 	}
 	if c.ContextMode == "" {
 		c.ContextMode = ContextModeCtx
+	}
+	if c.IconTheme != IconThemeNerd {
+		c.IconTheme = IconThemeText
 	}
 	if c.Separator == "" {
 		c.Separator = DefaultSeparator
@@ -209,6 +214,7 @@ func updateActiveSessions(c *Config) {
 		state := LoadState(path)
 		state.Species = c.Species
 		state.ContextMode = c.ContextMode
+		state.IconTheme = c.IconTheme
 		state.Lines = c.Lines
 		state.LineColors = c.LineColors
 		state.DisplayMode = c.DisplayMode

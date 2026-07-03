@@ -30,30 +30,34 @@ type Segment struct {
 // AllTokens is the ordered list of available template tokens.
 var AllTokens = []string{"pet", "mood", "joy", "ctx_bar", "model", "ctx", "cost", "changes", "cwd", "dir", "branch", "5h", "7d", "5h_bar", "7d_bar"}
 
-// SampleSegmentData returns example values for preview rendering.
-func SampleSegmentData(species Species, size Size, barStyle BarStyle, barShowPet bool, barWidth int) *SegmentData {
-	emoji := SizeEmoji(species, size)
+// SampleSegmentData returns example values for preview rendering. Values are
+// raw (undecorated); the icon theme's labels/glyphs are applied at resolve time
+// via SegmentData.IconTheme, so the preview matches real output.
+func SampleSegmentData(species Species, size Size, barStyle BarStyle, barShowPet bool, barWidth int, iconTheme IconTheme) *SegmentData {
 	// Build a sample bar using the given style settings.
 	sampleState := &State{
 		Species:    species,
 		Size:       size,
+		Mood:       MoodBored,
 		ContextPct: 53.1,
 		BarStyle:   barStyle,
 		BarShowPet: barShowPet,
 		BarWidth:   barWidth,
+		IconTheme:  iconTheme,
 	}
 	return &SegmentData{
-		Pet:     emoji,
-		Mood:    "bored",
-		Snacks:  "Joy: 5",
-		Bar:     FormatSeparator(sampleState),
-		Model:   "Model: Opus 4",
-		Ctx:     "53%",
-		Cost:    "$0.42",
-		Changes: "(+12/-3)",
-		Cwd:     "~/project",
-		Dir:     "project",
-		Branch:  "\u2325 main",
+		IconTheme:  iconTheme,
+		Pet:        SizeEmoji(species, size),
+		Mood:       "bored",
+		Snacks:     "5",
+		Bar:        FormatSeparator(sampleState),
+		Model:      "Opus 4",
+		Ctx:        "53%",
+		Cost:       "0.42",
+		Changes:    "+12/-3",
+		Cwd:        "~/project",
+		Dir:        "project",
+		Branch:     "main",
 		Limit5h:    "5h: 24% (reset in 2h 14m)",
 		Limit7d:    "7d: 41% (reset in 3d 5h)",
 		Limit5hBar: renderBarLine(24, " 5h: 24%", barStyle, barWidth),
@@ -143,19 +147,23 @@ func TemplateToTokens(tmpl string) []string {
 	return tokens
 }
 
-// SegmentData holds all resolved token values for template rendering.
+// SegmentData holds all resolved token values for template rendering. Scalar
+// fields (Branch, Model, Snacks, Cost, Changes, ...) hold RAW values; label
+// text and Nerd Font glyphs are applied per IconTheme in resolveToken. Pet and
+// Bar are pre-themed at build time.
 type SegmentData struct {
-	Cwd     string
-	Dir     string
-	Branch  string
-	Pet     string
-	Mood    string
-	Changes string
-	Model   string
-	Ctx     string
-	Bar     string
-	Snacks  string
-	Cost    string
+	IconTheme  IconTheme
+	Cwd        string
+	Dir        string
+	Branch     string
+	Pet        string
+	Mood       string
+	Changes    string
+	Model      string
+	Ctx        string
+	Bar        string
+	Snacks     string
+	Cost       string
 	Limit5h    string
 	Limit7d    string
 	Limit5hBar string
@@ -164,7 +172,7 @@ type SegmentData struct {
 
 // BuildSegmentData resolves all token values from state, Claude JSON, and OS.
 func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
-	d := &SegmentData{}
+	d := &SegmentData{IconTheme: s.IconTheme}
 
 	// {cwd}
 	if wd, err := os.Getwd(); err == nil {
@@ -178,7 +186,7 @@ func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
 
 	// {branch}
 	if out, err := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output(); err == nil {
-		d.Branch = "\u2325 " + strings.TrimSpace(string(out))
+		d.Branch = strings.TrimSpace(string(out))
 	}
 
 	// {pet}
@@ -188,7 +196,7 @@ func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
 	d.Mood = MoodLabel(s.Species, s.Mood)
 
 	// {snacks}
-	d.Snacks = fmt.Sprintf("Joy: %d", s.Happiness)
+	d.Snacks = fmt.Sprintf("%d", s.Happiness)
 
 	// {bar}
 	d.Bar = FormatSeparator(s)
@@ -201,9 +209,9 @@ func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
 	// {model}
 	if model, ok := claudeJSON["model"].(map[string]any); ok {
 		if name, ok := model["display_name"].(string); ok && name != "" {
-			d.Model = "Model: " + name
+			d.Model = name
 		} else if id, ok := model["id"].(string); ok && id != "" {
-			d.Model = "Model: " + id
+			d.Model = id
 		}
 	}
 
@@ -217,7 +225,7 @@ func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
 	// {cost}
 	if cost, ok := claudeJSON["cost"].(map[string]any); ok {
 		if total, ok := cost["total_cost_usd"].(float64); ok && total > 0 {
-			d.Cost = fmt.Sprintf("$%.2f", total)
+			d.Cost = fmt.Sprintf("%.2f", total)
 		}
 	}
 
@@ -234,7 +242,7 @@ func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
 
 	// {changes} — staged + unstaged git line changes
 	if added, removed, err := gitChanges(); err == nil {
-		d.Changes = fmt.Sprintf("(+%d/-%d)", added, removed)
+		d.Changes = fmt.Sprintf("+%d/-%d", added, removed)
 	}
 
 	return d
@@ -300,42 +308,49 @@ func ColorSegment(text string, color uint8) string {
 	return fmt.Sprintf("\x1b[38;5;%dm%s\x1b[0m", color, text)
 }
 
-// resolveToken resolves a single token name to its display string.
+// resolveToken resolves a single token name to its display string. Scalar
+// tokens are decorated with the icon theme's label/glyph; pet, mood, and the
+// bars are returned as-is (already themed or intentionally undecorated).
 func resolveToken(key string, data *SegmentData) string {
 	switch key {
-	case "cwd":
-		return data.Cwd
-	case "dir":
-		return data.Dir
-	case "branch":
-		return data.Branch
 	case "pet":
 		return data.Pet
 	case "mood":
 		return data.Mood
-	case "changes":
-		return data.Changes
-	case "model":
-		return data.Model
-	case "ctx":
-		return data.Ctx
 	case "ctx_bar", "bar": // "bar" kept as alias for configs written before the rename
 		return data.Bar
-	case "joy":
-		return data.Snacks
-	case "cost":
-		return data.Cost
-	case "5h":
-		return data.Limit5h
-	case "7d":
-		return data.Limit7d
 	case "5h_bar":
 		return data.Limit5hBar
 	case "7d_bar":
 		return data.Limit7dBar
+	}
+
+	var raw string
+	switch key {
+	case "cwd":
+		raw = data.Cwd
+	case "dir":
+		raw = data.Dir
+	case "branch":
+		raw = data.Branch
+	case "changes":
+		raw = data.Changes
+	case "model":
+		raw = data.Model
+	case "ctx":
+		raw = data.Ctx
+	case "joy":
+		raw = data.Snacks
+	case "cost":
+		raw = data.Cost
+	case "5h":
+		raw = data.Limit5h
+	case "7d":
+		raw = data.Limit7d
 	default:
 		return "{" + key + "}"
 	}
+	return decorateToken(data.IconTheme, key, raw)
 }
 
 // execCommand runs a shell command with a timeout and returns its output.

@@ -60,7 +60,7 @@ func ParseSpecies(s string) Species {
 type Mood int
 
 const (
-	MoodEating   Mood = iota
+	MoodEating Mood = iota
 	MoodChasing
 	MoodDigging
 	MoodFetching
@@ -184,21 +184,22 @@ func SizeFromContext(pct float64) Size {
 }
 
 type State struct {
-	Species     Species     `json:"species"`
-	ContextMode ContextMode `json:"context_mode"`
-	Lines      []string    `json:"lines,omitempty"`
-	LineColors [][]uint8   `json:"line_colors,omitempty"`
-	DisplayMode DisplayMode `json:"display_mode,omitempty"`
-	WrapCommand string      `json:"wrap_command,omitempty"`
-	BarStyle    BarStyle    `json:"bar_style,omitempty"`
-	BarShowPet  bool        `json:"bar_show_pet"`
-	BarWidth    int         `json:"bar_width,omitempty"`
-	Mood        Mood        `json:"mood"`
-	Size        Size        `json:"size"`
-	ContextPct  float64     `json:"context_pct"`
-	Happiness      int       `json:"happiness"`
-	LastEvent      time.Time `json:"last_event"`
-	LastMoodChange time.Time `json:"last_mood_change"`
+	Species        Species     `json:"species"`
+	ContextMode    ContextMode `json:"context_mode"`
+	IconTheme      IconTheme   `json:"icon_theme,omitempty"`
+	Lines          []string    `json:"lines,omitempty"`
+	LineColors     [][]uint8   `json:"line_colors,omitempty"`
+	DisplayMode    DisplayMode `json:"display_mode,omitempty"`
+	WrapCommand    string      `json:"wrap_command,omitempty"`
+	BarStyle       BarStyle    `json:"bar_style,omitempty"`
+	BarShowPet     bool        `json:"bar_show_pet"`
+	BarWidth       int         `json:"bar_width,omitempty"`
+	Mood           Mood        `json:"mood"`
+	Size           Size        `json:"size"`
+	ContextPct     float64     `json:"context_pct"`
+	Happiness      int         `json:"happiness"`
+	LastEvent      time.Time   `json:"last_event"`
+	LastMoodChange time.Time   `json:"last_mood_change"`
 }
 
 func NewState() *State {
@@ -210,8 +211,9 @@ func NewState() *State {
 	return &State{
 		Species:     cfg.Species,
 		ContextMode: cfg.ContextMode,
-		Lines:      cfg.Lines,
-		LineColors: cfg.LineColors,
+		IconTheme:   cfg.IconTheme,
+		Lines:       cfg.Lines,
+		LineColors:  cfg.LineColors,
 		DisplayMode: cfg.DisplayMode,
 		WrapCommand: cfg.WrapCommand,
 		BarStyle:    cfg.BarStyle,
@@ -333,4 +335,3 @@ func SaveState(path string, s *State) error {
 	_ = os.MkdirAll(filepath.Dir(path), 0755)
 	return nil
 }
-

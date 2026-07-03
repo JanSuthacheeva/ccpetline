@@ -58,8 +58,8 @@ func SampleSegmentData(species Species, size Size, barStyle BarStyle, barShowPet
 		Cwd:        "~/project",
 		Dir:        "project",
 		Branch:     "main",
-		Limit5h:    "5h: 24% (reset in 2h 14m)",
-		Limit7d:    "7d: 41% (reset in 3d 5h)",
+		Limit5h:    "5h: 24% (2h 14m)",
+		Limit7d:    "7d: 41% (3d 5h)",
 		Limit5hBar: renderBarLine(24, " 5h: 24%", barStyle, barWidth),
 		Limit7dBar: renderBarLine(41, " 7d: 41%", barStyle, barWidth),
 	}
@@ -249,7 +249,7 @@ func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
 }
 
 // formatRateLimit renders one rate limit window as
-// "<label>: <pct>% (reset in <duration>)", or "" when the window is absent.
+// "<label>: <pct>% (<duration>)", or "" when the window is absent.
 // The reset part is omitted when resets_at is missing or already passed.
 func formatRateLimit(rateLimits map[string]any, window, label string, now time.Time) string {
 	w, ok := rateLimits[window].(map[string]any)
@@ -263,7 +263,7 @@ func formatRateLimit(rateLimits map[string]any, window, label string, now time.T
 	out := fmt.Sprintf("%s: %.0f%%", label, pct)
 	if resetsAt, ok := w["resets_at"].(float64); ok {
 		if remaining := time.Unix(int64(resetsAt), 0).Sub(now); remaining > 0 {
-			out += fmt.Sprintf(" (reset in %s)", formatDuration(remaining))
+			out += fmt.Sprintf(" (%s)", formatDuration(remaining))
 		}
 	}
 	return out

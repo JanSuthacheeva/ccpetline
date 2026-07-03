@@ -17,7 +17,7 @@ func TestFormatRateLimit(t *testing.T) {
 		{
 			name:   "with future reset",
 			window: map[string]any{"used_percentage": 13.0, "resets_at": float64(1781100000 + 2*3600 + 14*60)},
-			want:   "5h: 13% (reset in 2h 14m)",
+			want:   "5h: 13% (2h 14m)",
 		},
 		{
 			name:   "reset already passed",

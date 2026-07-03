@@ -232,6 +232,7 @@ type model struct {
 	barStyle       pet.BarStyle
 	barShowPet     bool
 	barWidth       int
+	powerline      bool
 	barStyleCursor int
 
 	installStatus string
@@ -344,6 +345,7 @@ func initialModel() model {
 		barStyle:       barStyle,
 		barShowPet:     barShowPet,
 		barWidth:       barWidth,
+		powerline:      cfg.Powerline,
 		barStyleCursor: barStyleCursor,
 	}
 }
@@ -1081,12 +1083,13 @@ func (m model) updateColorPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// barStyleRows: 0..len(AllBarStyles)-1 = styles, next = pet toggle, next = width
+// barStyleRows: 0..len(AllBarStyles)-1 = styles, then pet toggle, width, powerline
 const barRowPetToggle = 4 // len(AllBarStyles)
 const barRowWidth = 5
+const barRowPowerline = 6
 
 func (m model) updateBarStyle(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	maxRow := barRowWidth
+	maxRow := barRowPowerline
 	switch msg.String() {
 	case "esc":
 		m.section = sectionMenu
@@ -1104,6 +1107,9 @@ func (m model) updateBarStyle(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.save()
 		} else if m.barStyleCursor == barRowPetToggle {
 			m.barShowPet = !m.barShowPet
+			m.save()
+		} else if m.barStyleCursor == barRowPowerline {
+			m.powerline = !m.powerline
 			m.save()
 		}
 	case "left", "h":
@@ -1160,6 +1166,18 @@ func (m model) viewBarStyle(b *strings.Builder) {
 	// Width row
 	widthText := fmt.Sprintf("Bar width %s", valueStyle.Render(fmt.Sprintf("%d", m.barWidth)))
 	row(b, m.barStyleCursor == barRowWidth, "\u2194\ufe0f", widthText)
+
+	// Powerline toggle row
+	plVal := "off"
+	if m.powerline {
+		plVal = "on"
+	}
+	plText := fmt.Sprintf("Powerline (segment backgrounds) %s", valueStyle.Render(plVal))
+	row(b, m.barStyleCursor == barRowPowerline, "\U0001F3A8", plText)
+	if m.powerline {
+		b.WriteString(hintStyle.Render("      colors become segment backgrounds; needs a Nerd Font"))
+		b.WriteString("\n")
+	}
 }
 
 func (m model) barPreview(style pet.BarStyle, showPet bool) string {
@@ -1221,6 +1239,7 @@ func (m *model) save() {
 		BarStyle:    m.barStyle,
 		BarShowPet:  barShowPet,
 		BarWidth:    m.barWidth,
+		Powerline:   m.powerline,
 	}
 	if err := pet.SaveConfig(cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "Error saving config: %v\n", err)
@@ -1518,8 +1537,12 @@ func (m model) viewLinesPicker(b *strings.Builder) {
 	for i := 0; i < maxLines; i++ {
 		preview := dimStyle.Render("(empty)")
 		if len(m.lines[i]) > 0 {
-			tmpl := pet.SegmentsToTemplate(m.lines[i], m.separator)
-			preview = valueStyle.Render(pet.RenderTemplate(tmpl, sample))
+			if m.powerline {
+				preview = pet.RenderPowerlineLine(m.lines[i], m.lineColors[i], sample)
+			} else {
+				tmpl := pet.SegmentsToTemplate(m.lines[i], m.separator)
+				preview = valueStyle.Render(pet.RenderTemplate(tmpl, sample))
+			}
 		}
 		row(b, i == m.lineFocused, lineEmojis[i], preview)
 	}
@@ -1535,9 +1558,12 @@ func (m model) viewLineEdit(b *strings.Builder) {
 		}
 		colors := m.lineColors[i]
 		var rendered string
-		if len(colors) > 0 {
+		switch {
+		case m.powerline:
+			rendered = pet.RenderPowerlineLine(m.lines[i], colors, sample)
+		case len(colors) > 0:
 			rendered = m.renderColoredPreview(m.lines[i], colors, sample)
-		} else {
+		default:
 			tmpl := pet.SegmentsToTemplate(m.lines[i], m.separator)
 			rendered = pet.RenderTemplate(tmpl, sample)
 		}

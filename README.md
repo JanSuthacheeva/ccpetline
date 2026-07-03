@@ -71,6 +71,13 @@ line (unlike terminal image protocols, which it does not support).
 Colors are configured separately, per segment, via the color picker in **Edit Lines** (press
 `f`). The status line renders in a muted color until you set colors.
 
+### Powerline
+
+Enable **Powerline** in `ccpetline-config` (under **Bar Style**) to render each segment as a
+filled block joined by `` arrows. In this mode the per-segment colors become segment
+**backgrounds** and the text color auto-contrasts. Powerline needs a Nerd Font (every Nerd
+Font ships the arrow glyph).
+
 ## Architecture
 
 ```

@@ -72,6 +72,7 @@ type Config struct {
 	BarStyle    BarStyle    `json:"bar_style,omitempty"`
 	BarShowPet  *bool       `json:"bar_show_pet,omitempty"`
 	BarWidth    int         `json:"bar_width,omitempty"`
+	Powerline   bool        `json:"powerline,omitempty"`
 
 	// Deprecated fields kept for migration only.
 	ShowSnacks *bool `json:"show_snacks,omitempty"`
@@ -224,6 +225,7 @@ func updateActiveSessions(c *Config) {
 			state.BarShowPet = *c.BarShowPet
 		}
 		state.BarWidth = c.BarWidth
+		state.Powerline = c.Powerline
 		_ = SaveState(path, state)
 	}
 }

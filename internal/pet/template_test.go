@@ -1,6 +1,7 @@
 package pet
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -242,6 +243,42 @@ func TestRenderBarLineWideSuffix(t *testing.T) {
 	out := renderBarLine(50, " 🔥 50%", BarBlock, 40)
 	if w := cellWidth(out); w != 40 {
 		t.Errorf("renderBarLine width = %d, want 40 (%q)", w, out)
+	}
+}
+
+func TestRenderPowerlineLine(t *testing.T) {
+	segs := TemplateToSegments("{model} | {joy}")
+	colors := []uint8{51, 0, 212} // model=cyan, sep=0, joy=pink
+	data := &SegmentData{IconTheme: IconThemeText, Model: "Opus 4", Snacks: "5"}
+	out := RenderPowerlineLine(segs, colors, data)
+
+	// Two arrows (between blocks + trailing), no literal " | ".
+	if strings.Count(out, powerlineSep) != 2 {
+		t.Errorf("want 2 separators, got %d in %q", strings.Count(out, powerlineSep), out)
+	}
+	if strings.Contains(out, "|") {
+		t.Errorf("powerline line should not contain the plain separator: %q", out)
+	}
+	// Backgrounds come from the token colors; text is decorated + padded.
+	if !strings.Contains(out, "48;5;51m Model: Opus 4 ") {
+		t.Errorf("model block missing cyan background: %q", out)
+	}
+	if !strings.Contains(out, "48;5;212m Joy: 5 ") {
+		t.Errorf("joy block missing pink background: %q", out)
+	}
+
+	// Empty input renders nothing.
+	if RenderPowerlineLine(TemplateToSegments("{cost}"), nil, &SegmentData{}) != "" {
+		t.Error("powerline line with only-empty tokens should be empty")
+	}
+}
+
+func TestContrastFg(t *testing.T) {
+	if got := contrastFg(51); got != 16 { // bright cyan -> dark text
+		t.Errorf("contrastFg(51) = %d, want 16", got)
+	}
+	if got := contrastFg(21); got != 231 { // pure blue -> light text
+		t.Errorf("contrastFg(21) = %d, want 231", got)
 	}
 }
 

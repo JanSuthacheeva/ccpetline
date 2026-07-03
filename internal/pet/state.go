@@ -194,6 +194,7 @@ type State struct {
 	BarStyle       BarStyle    `json:"bar_style,omitempty"`
 	BarShowPet     bool        `json:"bar_show_pet"`
 	BarWidth       int         `json:"bar_width,omitempty"`
+	Powerline      bool        `json:"powerline,omitempty"`
 	Mood           Mood        `json:"mood"`
 	Size           Size        `json:"size"`
 	ContextPct     float64     `json:"context_pct"`
@@ -219,6 +220,7 @@ func NewState() *State {
 		BarStyle:    cfg.BarStyle,
 		BarShowPet:  barShowPet,
 		BarWidth:    cfg.BarWidth,
+		Powerline:   cfg.Powerline,
 		Mood:        MoodSleeping,
 		Size:        SizeTiny,
 		LastEvent:   time.Now(),

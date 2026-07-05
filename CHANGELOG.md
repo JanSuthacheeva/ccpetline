@@ -6,6 +6,8 @@
 - Nerd theme prefixes tokens with glyphs (folder, git branch, microchip, gauge, dollar, diff, clock, heart); the pet stays a colorful emoji in both themes
 - `DefaultLineColors` / `DefaultTokenColors`: a default color scheme mapping each token to a sensible ANSI color
 - New **Powerline** toggle (Bar Style screen): renders each segment as a filled block joined by powerline arrows, using the per-segment colors as backgrounds with auto-contrasting text (needs a Nerd Font)
+- Configurable powerline separator via the **Separator** row below the Powerline toggle: Arrow (default), Round, Slant, Backslant, Flame, Pixels, or None for flush blocks with a straight edge and no glyph
+- Old configs without the `powerline_sep` field keep the arrow separator
 - Shortened the rate-limit reset hint from `(reset in 2h 14m)` to `(2h 14m)`
 - Fixed the branch marker in the default text theme: `⌥` (macOS Option key) replaced with `⎇`
 - Fixed bar width to measure display cells instead of bytes, so the progress bar no longer overruns its configured width when the pet or suffix contains wide/multi-byte characters

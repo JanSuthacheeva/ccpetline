@@ -4,7 +4,16 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
+
+// cellWidth returns the terminal display width of s in columns, correctly
+// accounting for wide runes (emoji) and stripping any ANSI. Bar math must use
+// this rather than len(), which counts bytes.
+func cellWidth(s string) int {
+	return lipgloss.Width(s)
+}
 
 var foodEmojis = []string{
 	"\U0001F32E", // 🌮
@@ -46,7 +55,9 @@ func SizeEmoji(species Species, size Size) string {
 	return emojis[idx]
 }
 
-// RenderEmoji returns the pet emoji string based on mood and size.
+// RenderEmoji returns the pet emoji string based on mood and size. The pet is
+// always an emoji, including in the Nerd Font theme, since monochrome animal
+// glyphs read poorly at status-bar size.
 func RenderEmoji(s *State) string {
 	base := SizeEmoji(s.Species, s.Size)
 	switch s.Mood {
@@ -96,7 +107,7 @@ func renderBarLine(pct float64, suffix string, style BarStyle, width int) string
 	}
 	filled, empty := chars[0], chars[1]
 
-	barWidth := width - len(suffix)
+	barWidth := width - cellWidth(suffix)
 	if barWidth < 2 {
 		barWidth = 2
 	}
@@ -135,27 +146,38 @@ func FormatSeparator(s *State) string {
 	}
 
 	suffix := fmt.Sprintf(" %s: %.1f%%", label, displayPct)
-	barWidth := width - len(suffix)
+	barWidth := width - cellWidth(suffix)
 	if barWidth < 2 {
 		barWidth = 2
 	}
 
 	if s.BarShowPet {
-		emoji := SizeEmoji(s.Species, s.Size)
-		pos := int(displayPct / 100 * float64(barWidth-1))
+		pet := SizeEmoji(s.Species, s.Size)
+		// The pet occupies its own display width on the track (emoji are 2
+		// cells wide), so reserve that many columns instead of assuming 1 -
+		// otherwise the bar overruns the configured width.
+		petW := cellWidth(pet)
+		if petW < 1 {
+			petW = 1
+		}
+		track := barWidth - petW
+		if track < 0 {
+			track = 0
+		}
+		pos := int(displayPct / 100 * float64(track))
 		if pos < 0 {
 			pos = 0
 		}
-		if pos > barWidth-1 {
-			pos = barWidth - 1
+		if pos > track {
+			pos = track
 		}
 		left := strings.Repeat(filled, pos)
-		rightLen := barWidth - 1 - pos
+		rightLen := track - pos
 		if rightLen < 0 {
 			rightLen = 0
 		}
 		right := strings.Repeat(empty, rightLen)
-		return left + emoji + right + suffix
+		return left + pet + right + suffix
 	}
 
 	return renderBarLine(displayPct, suffix, s.BarStyle, width)

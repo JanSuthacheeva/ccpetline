@@ -61,16 +61,19 @@ func DisplayModeLabel(m DisplayMode) string {
 }
 
 type Config struct {
-	Species     Species     `json:"species"`
-	ContextMode ContextMode `json:"context_mode"`
-	Separator   string      `json:"separator"`
-	Lines      []string    `json:"lines,omitempty"`
-	LineColors [][]uint8   `json:"line_colors,omitempty"`
-	DisplayMode DisplayMode `json:"display_mode,omitempty"`
-	WrapCommand string      `json:"wrap_command,omitempty"`
-	BarStyle    BarStyle    `json:"bar_style,omitempty"`
-	BarShowPet  *bool       `json:"bar_show_pet,omitempty"`
-	BarWidth    int         `json:"bar_width,omitempty"`
+	Species      Species           `json:"species"`
+	ContextMode  ContextMode       `json:"context_mode"`
+	IconTheme    IconTheme         `json:"icon_theme,omitempty"`
+	Separator    string            `json:"separator"`
+	Lines        []string          `json:"lines,omitempty"`
+	LineColors   [][]uint8         `json:"line_colors,omitempty"`
+	DisplayMode  DisplayMode       `json:"display_mode,omitempty"`
+	WrapCommand  string            `json:"wrap_command,omitempty"`
+	BarStyle     BarStyle          `json:"bar_style,omitempty"`
+	BarShowPet   *bool             `json:"bar_show_pet,omitempty"`
+	BarWidth     int               `json:"bar_width,omitempty"`
+	Powerline    bool              `json:"powerline,omitempty"`
+	PowerlineSep PowerlineSepStyle `json:"powerline_sep,omitempty"`
 
 	// Deprecated fields kept for migration only.
 	ShowSnacks *bool `json:"show_snacks,omitempty"`
@@ -93,13 +96,16 @@ func barShowPetDefault() *bool {
 
 func defaultConfig() *Config {
 	return &Config{
-		Species:     SpeciesCat,
-		ContextMode: ContextModeCtx,
-		Separator:   DefaultSeparator,
-		Lines:       DefaultLines,
-		BarStyle:    BarThin,
-		BarShowPet:  barShowPetDefault(),
-		BarWidth:    50,
+		Species:      SpeciesCat,
+		ContextMode:  ContextModeCtx,
+		IconTheme:    IconThemeText,
+		Separator:    DefaultSeparator,
+		Lines:        DefaultLines,
+		LineColors:   DefaultLineColors(DefaultLines),
+		BarStyle:     BarThin,
+		BarShowPet:   barShowPetDefault(),
+		BarWidth:     50,
+		PowerlineSep: SepArrow,
 	}
 }
 
@@ -122,6 +128,9 @@ func LoadConfig() *Config {
 	if c.ContextMode == "" {
 		c.ContextMode = ContextModeCtx
 	}
+	if c.IconTheme != IconThemeNerd {
+		c.IconTheme = IconThemeText
+	}
 	if c.Separator == "" {
 		c.Separator = DefaultSeparator
 	}
@@ -133,10 +142,18 @@ func LoadConfig() *Config {
 	if c.BarShowPet == nil {
 		c.BarShowPet = barShowPetDefault()
 	}
+	switch c.PowerlineSep {
+	case SepRound, SepSlant, SepBackslant, SepFlame, SepPixels, SepNone:
+	default:
+		c.PowerlineSep = SepArrow
+	}
 	if c.BarWidth < 20 || c.BarWidth > 80 {
 		c.BarWidth = 50
 	}
 	migrateConfig(&c)
+	if len(c.LineColors) == 0 {
+		c.LineColors = DefaultLineColors(c.Lines)
+	}
 	return &c
 }
 
@@ -209,6 +226,7 @@ func updateActiveSessions(c *Config) {
 		state := LoadState(path)
 		state.Species = c.Species
 		state.ContextMode = c.ContextMode
+		state.IconTheme = c.IconTheme
 		state.Lines = c.Lines
 		state.LineColors = c.LineColors
 		state.DisplayMode = c.DisplayMode
@@ -218,6 +236,8 @@ func updateActiveSessions(c *Config) {
 			state.BarShowPet = *c.BarShowPet
 		}
 		state.BarWidth = c.BarWidth
+		state.Powerline = c.Powerline
+		state.PowerlineSep = c.PowerlineSep
 		_ = SaveState(path, state)
 	}
 }

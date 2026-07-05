@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.0.6
+
+- New **Icons** setting in `ccpetline-config`: choose between the `text` theme (spelled-out labels, the default) and the `nerd` theme (monochrome Nerd Font glyphs)
+- Nerd theme prefixes tokens with glyphs (folder, git branch, microchip, gauge, dollar, diff, clock, heart); the pet stays a colorful emoji in both themes
+- `DefaultLineColors` / `DefaultTokenColors`: a default color scheme mapping each token to a sensible ANSI color
+- New **Powerline** toggle (Bar Style screen): renders each segment as a filled block joined by powerline arrows, using the per-segment colors as backgrounds with auto-contrasting text (needs a Nerd Font)
+- Configurable powerline separator via the **Separator** row below the Powerline toggle: Arrow (default), Round, Slant, Backslant, Flame, Pixels, or None for flush blocks with a straight edge and no glyph
+- Old configs without the `powerline_sep` field keep the arrow separator
+- Shortened the rate-limit reset hint from `(reset in 2h 14m)` to `(2h 14m)`
+- Fixed the branch marker in the default text theme: `⌥` (macOS Option key) replaced with `⎇`
+- Fixed bar width to measure display cells instead of bytes, so the progress bar no longer overruns its configured width when the pet or suffix contains wide/multi-byte characters
+- Nerd theme requires a Nerd Font installed; falls back to the text theme otherwise
+
 ## 0.0.5
 
 - New tokens `{5h}` and `{7d}` showing Claude subscription rate limit usage with reset countdown, e.g. `5h: 13% (reset in 2h 14m)`

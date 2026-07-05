@@ -41,6 +41,7 @@ make install
 ## Features
 
 - **5 pets** -- cat, goose, dragon, dino, ocean creature
+- **Icon themes** -- spelled-out text labels (default) or crisp Nerd Font glyphs
 - **Highly customizable** -- bar style, width, layout, colors, line templates with tokens
 - **Standalone or composable** -- use as a full status line, or prepend/append to an existing one
 - **Reactive** -- pet mood and size change dynamically based on tool use and context window fill
@@ -54,6 +55,34 @@ ccpetline renders pets using emoji and Unicode characters. Your terminal needs:
 - An emoji-capable font (most modern terminals work out of the box)
 - If emojis don't render correctly, install [Noto Color Emoji](https://fonts.google.com/noto/specimen/Noto+Color+Emoji)
 - For best results, use a [Nerd Font](https://www.nerdfonts.com/) which includes extra glyphs
+
+## Icon theme
+
+By default, token labels are spelled out (`Model: Opus 4`, `Joy: 5`, `$0.42`). Switch to
+the **Nerd Font** theme in `ccpetline-config` (under **Icons**) to render them as monochrome
+glyphs instead (a microchip for the model, a folder for the directory, a heart for joy, etc.).
+The pet stays a colorful emoji in both themes.
+
+The Nerd Font theme requires a [Nerd Font](https://www.nerdfonts.com/) installed in your
+terminal; if glyphs show as boxes, either install one or switch back to the text theme.
+Both themes are plain Unicode text, so they render correctly through Claude Code's status
+line (unlike terminal image protocols, which it does not support).
+
+Colors are configured separately, per segment, via the color picker in **Edit Lines** (press
+`f`). Out of the box the status line uses a default color scheme (blue directory, purple
+branch, gold changes, cyan model, green cost, pink joy, and so on); override any segment to
+taste.
+
+### Powerline
+
+Enable **Powerline** in `ccpetline-config` (under **Bar Style**) to render each segment as a
+filled block joined by `` arrows. In this mode the per-segment colors become segment
+**backgrounds** and the text color auto-contrasts. Powerline needs a Nerd Font (every Nerd
+Font ships the separator glyphs).
+
+The separator glyph is configurable via the **Separator** row that appears below the
+Powerline toggle: Arrow ``, Round ``, Slant ``, Backslant ``, Flame ``,
+Pixels `` or None for a straight edge with no glyph between blocks.
 
 ## Architecture
 

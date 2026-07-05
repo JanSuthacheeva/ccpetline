@@ -16,6 +16,7 @@ func SpritePNG(size Size, mood Mood) []byte {
 }
 
 var sizeNames = [...]string{"tiny", "normal", "chonky", "megachonk", "unit"}
+
 func spriteMood(mood Mood) string {
 	switch mood {
 	case MoodEating, MoodChasing, MoodDigging, MoodFetching, MoodPouncing:

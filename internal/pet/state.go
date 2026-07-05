@@ -290,6 +290,32 @@ func (s *State) ComputeMood() {
 	}
 }
 
+// isStateFile reports whether name is a ccpetline session state file.
+func isStateFile(name string) bool {
+	return strings.HasPrefix(name, "ccpetline-state") && strings.HasSuffix(name, ".json")
+}
+
+// isStateTempFile reports whether name is a temp file orphaned by a crash
+// between CreateTemp and rename in SaveState.
+func isStateTempFile(name string) bool {
+	return strings.HasPrefix(name, "ccpetline-state") && strings.Contains(name, ".json.tmp-")
+}
+
+// statePaths returns the full paths of all session state files in stateDir.
+func statePaths() []string {
+	entries, err := os.ReadDir(stateDir)
+	if err != nil {
+		return nil
+	}
+	var paths []string
+	for _, e := range entries {
+		if !e.IsDir() && isStateFile(e.Name()) {
+			paths = append(paths, filepath.Join(stateDir, e.Name()))
+		}
+	}
+	return paths
+}
+
 // CleanStaleStates removes state files not modified in the given duration.
 func CleanStaleStates(maxAge time.Duration) {
 	entries, err := os.ReadDir(stateDir)
@@ -301,12 +327,7 @@ func CleanStaleStates(maxAge time.Duration) {
 			continue
 		}
 		name := e.Name()
-		if !strings.HasPrefix(name, "ccpetline-state") {
-			continue
-		}
-		// State files end in .json; orphaned temp files (crash between
-		// CreateTemp and rename in SaveState) contain .json.tmp-.
-		if !strings.HasSuffix(name, ".json") && !strings.Contains(name, ".json.tmp-") {
+		if !isStateFile(name) && !isStateTempFile(name) {
 			continue
 		}
 		info, err := e.Info()

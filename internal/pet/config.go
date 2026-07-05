@@ -240,19 +240,10 @@ func SaveConfig(c *Config) error {
 	return nil
 }
 
-// updateActiveSessions patches all /tmp/ccpetline-state-*.json files
-// with the new config values so running sessions pick up changes immediately.
+// updateActiveSessions patches all session state files with the new config
+// values so running sessions pick up changes immediately.
 func updateActiveSessions(c *Config) {
-	entries, err := os.ReadDir(stateDir)
-	if err != nil {
-		return
-	}
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || len(name) < 20 || name[:15] != "ccpetline-state" || name[len(name)-5:] != ".json" {
-			continue
-		}
-		path := filepath.Join(stateDir, name)
+	for _, path := range statePaths() {
 		state := LoadState(path)
 		state.ApplyConfig(c)
 		_ = SaveState(path, state)

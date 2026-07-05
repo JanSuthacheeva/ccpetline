@@ -206,28 +206,34 @@ type State struct {
 }
 
 func NewState() *State {
-	cfg := LoadConfig()
-	barShowPet := true
+	s := &State{
+		BarShowPet: true,
+		Mood:       MoodSleeping,
+		Size:       SizeTiny,
+		LastEvent:  time.Now(),
+	}
+	s.ApplyConfig(LoadConfig())
+	return s
+}
+
+// ApplyConfig copies the display settings snapshot from cfg into s. This is
+// the single place where Config fields map onto their State duplicates; new
+// settings only need to be added here.
+func (s *State) ApplyConfig(cfg *Config) {
+	s.Species = cfg.Species
+	s.ContextMode = cfg.ContextMode
+	s.IconTheme = cfg.IconTheme
+	s.Lines = cfg.Lines
+	s.LineColors = cfg.LineColors
+	s.DisplayMode = cfg.DisplayMode
+	s.WrapCommand = cfg.WrapCommand
+	s.BarStyle = cfg.BarStyle
 	if cfg.BarShowPet != nil {
-		barShowPet = *cfg.BarShowPet
+		s.BarShowPet = *cfg.BarShowPet
 	}
-	return &State{
-		Species:      cfg.Species,
-		ContextMode:  cfg.ContextMode,
-		IconTheme:    cfg.IconTheme,
-		Lines:        cfg.Lines,
-		LineColors:   cfg.LineColors,
-		DisplayMode:  cfg.DisplayMode,
-		WrapCommand:  cfg.WrapCommand,
-		BarStyle:     cfg.BarStyle,
-		BarShowPet:   barShowPet,
-		BarWidth:     cfg.BarWidth,
-		Powerline:    cfg.Powerline,
-		PowerlineSep: cfg.PowerlineSep,
-		Mood:         MoodSleeping,
-		Size:         SizeTiny,
-		LastEvent:    time.Now(),
-	}
+	s.BarWidth = cfg.BarWidth
+	s.Powerline = cfg.Powerline
+	s.PowerlineSep = cfg.PowerlineSep
 }
 
 const moodCooldown = 60 * time.Second

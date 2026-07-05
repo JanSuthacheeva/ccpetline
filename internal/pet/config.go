@@ -242,20 +242,7 @@ func updateActiveSessions(c *Config) {
 		}
 		path := filepath.Join(stateDir, name)
 		state := LoadState(path)
-		state.Species = c.Species
-		state.ContextMode = c.ContextMode
-		state.IconTheme = c.IconTheme
-		state.Lines = c.Lines
-		state.LineColors = c.LineColors
-		state.DisplayMode = c.DisplayMode
-		state.WrapCommand = c.WrapCommand
-		state.BarStyle = c.BarStyle
-		if c.BarShowPet != nil {
-			state.BarShowPet = *c.BarShowPet
-		}
-		state.BarWidth = c.BarWidth
-		state.Powerline = c.Powerline
-		state.PowerlineSep = c.PowerlineSep
+		state.ApplyConfig(c)
 		_ = SaveState(path, state)
 	}
 }

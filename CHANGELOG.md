@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.9
 
 - New: custom hex colors for any segment. The color picker in **Edit Lines** gained a **custom hex** entry (press `#` or select the row below the swatches) accepting any `#rgb` / `#rrggbb` code with a live preview; hex colors render as 24-bit truecolor in both the plain and powerline looks, with the powerline foreground still auto-contrasting
 - `line_colors` in `config.json` now accepts hex strings alongside the existing ANSI-256 numbers; old configs load and save unchanged, and invalid color entries are normalized to "no color" instead of failing the load

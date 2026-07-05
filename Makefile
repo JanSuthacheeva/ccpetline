@@ -1,4 +1,4 @@
-VERSION ?= 0.0.8
+VERSION ?= 0.0.9
 BINDIR ?= $(HOME)/.local/bin
 MODULE = github.com/jansuthacheeva/ccpetline
 LDFLAGS = -ldflags "-X $(MODULE)/internal/pet.Version=$(VERSION)"

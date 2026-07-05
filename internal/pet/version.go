@@ -10,7 +10,7 @@ import (
 )
 
 // Version is the current release version. Overridden at build time via ldflags.
-var Version = "0.0.8"
+var Version = "0.0.9"
 
 // CheckLatestRelease queries GitHub for the latest release tag and returns it.
 // Returns empty string if already on latest or if the check fails.

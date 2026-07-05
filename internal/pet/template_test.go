@@ -51,6 +51,13 @@ func TestFormatRateLimit(t *testing.T) {
 	}
 }
 
+func TestGitChangesOutsideRepo(t *testing.T) {
+	t.Chdir(t.TempDir())
+	if _, _, err := gitChanges(); err == nil {
+		t.Fatal("gitChanges outside a git repository should return an error")
+	}
+}
+
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		d    time.Duration

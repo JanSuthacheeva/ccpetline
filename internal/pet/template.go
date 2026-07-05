@@ -493,12 +493,16 @@ func RenderLines(s *State, claudeJSON map[string]any) []string {
 func gitChanges() (added, removed int, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
-	for _, args := range [][]string{
+	cmds := [][]string{
 		{"git", "diff", "--shortstat"},
 		{"git", "diff", "--cached", "--shortstat"},
-	} {
-		out, err := exec.CommandContext(ctx, args[0], args[1:]...).Output()
-		if err != nil {
+	}
+	failures := 0
+	for _, args := range cmds {
+		out, cmdErr := exec.CommandContext(ctx, args[0], args[1:]...).Output()
+		if cmdErr != nil {
+			failures++
+			err = cmdErr
 			continue
 		}
 		s := string(out)
@@ -512,6 +516,11 @@ func gitChanges() (added, removed int, err error) {
 				removed += n
 			}
 		}
+	}
+	// Outside a git repository both invocations fail; report that instead
+	// of a fake +0/-0.
+	if failures == len(cmds) {
+		return 0, 0, err
 	}
 	return added, removed, nil
 }

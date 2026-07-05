@@ -69,7 +69,9 @@ Both themes are plain Unicode text, so they render correctly through Claude Code
 line (unlike terminal image protocols, which it does not support).
 
 Colors are configured separately, per segment, via the color picker in **Edit Lines** (press
-`f`). The status line renders in a muted color until you set colors.
+`f`). Out of the box the status line uses a default color scheme (blue directory, purple
+branch, gold changes, cyan model, green cost, pink joy, and so on); override any segment to
+taste.
 
 ### Powerline
 

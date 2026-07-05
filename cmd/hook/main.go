@@ -26,7 +26,7 @@ func main() {
 
 	switch in.HookEventName {
 	case "PostToolUse":
-		state.Feed(in.ToolName)
+		state.Feed()
 	case "SessionStart":
 		if in.Source == "resume" {
 			state.Wake()

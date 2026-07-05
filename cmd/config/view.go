@@ -60,7 +60,7 @@ func (m model) barPreview(style pet.BarStyle, showPet bool) string {
 		BarWidth:   m.barWidth,
 		IconTheme:  m.iconTheme,
 	}
-	return pet.FormatSeparator(s)
+	return pet.RenderContextBar(s)
 }
 
 func (m model) View() string {

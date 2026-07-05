@@ -48,7 +48,7 @@ func SampleSegmentData(species Species, size Size, barStyle BarStyle, barShowPet
 		Pet:        SizeEmoji(species, size),
 		Mood:       "bored",
 		Snacks:     "5",
-		Bar:        FormatSeparator(sampleState),
+		Bar:        RenderContextBar(sampleState),
 		Model:      "Opus 4",
 		Ctx:        "53%",
 		Cost:       "0.42",
@@ -96,7 +96,7 @@ func TemplateToSegments(tmpl string) []Segment {
 	var segs []Segment
 	last := 0
 	for _, loc := range segRe.FindAllStringSubmatchIndex(tmpl, -1) {
-		// literal text before this match — skip whitespace-only gaps
+		// literal text before this match - skip whitespace-only gaps
 		// (adjacent tokens get auto-spaced)
 		if loc[0] > last {
 			lit := tmpl[last:loc[0]]
@@ -173,10 +173,10 @@ func BuildSegmentData(s *State, in *ClaudeInput) *SegmentData {
 	d.Mood = MoodLabel(s.Species, s.Mood)
 
 	// {snacks}
-	d.Snacks = fmt.Sprintf("%d", s.Happiness)
+	d.Snacks = strconv.Itoa(s.Happiness)
 
 	// {bar}
-	d.Bar = FormatSeparator(s)
+	d.Bar = RenderContextBar(s)
 
 	// Fields from the Claude payload
 	if in == nil {
@@ -211,7 +211,7 @@ func BuildSegmentData(s *State, in *ClaudeInput) *SegmentData {
 		d.Limit7dBar = formatRateLimitBar(in.RateLimits, "seven_day", "7d", s)
 	}
 
-	// {changes} — staged + unstaged git line changes
+	// {changes} - staged + unstaged git line changes
 	if added, removed, err := gitChanges(); err == nil {
 		d.Changes = fmt.Sprintf("+%d/-%d", added, removed)
 	}
@@ -223,21 +223,30 @@ func BuildSegmentData(s *State, in *ClaudeInput) *SegmentData {
 // "<label>: <pct>% (<duration>)", or "" when the window is absent.
 // The reset part is omitted when resets_at is missing or already passed.
 func formatRateLimit(rateLimits map[string]any, window, label string, now time.Time) string {
-	w, ok := rateLimits[window].(map[string]any)
-	if !ok {
-		return ""
-	}
-	pct, ok := w["used_percentage"].(float64)
+	pct, ok := rateLimitPct(rateLimits, window)
 	if !ok {
 		return ""
 	}
 	out := fmt.Sprintf("%s: %.0f%%", label, pct)
-	if resetsAt, ok := w["resets_at"].(float64); ok {
-		if remaining := time.Unix(int64(resetsAt), 0).Sub(now); remaining > 0 {
-			out += fmt.Sprintf(" (%s)", formatDuration(remaining))
+	if w, ok := rateLimits[window].(map[string]any); ok {
+		if resetsAt, ok := w["resets_at"].(float64); ok {
+			if remaining := time.Unix(int64(resetsAt), 0).Sub(now); remaining > 0 {
+				out += fmt.Sprintf(" (%s)", formatDuration(remaining))
+			}
 		}
 	}
 	return out
+}
+
+// rateLimitPct extracts used_percentage for one rate limit window, reporting
+// whether the window is present.
+func rateLimitPct(rateLimits map[string]any, window string) (float64, bool) {
+	w, ok := rateLimits[window].(map[string]any)
+	if !ok {
+		return 0, false
+	}
+	pct, ok := w["used_percentage"].(float64)
+	return pct, ok
 }
 
 // formatDuration renders a duration compactly: "37m", "2h 14m", "3d 5h".
@@ -258,11 +267,7 @@ func formatDuration(d time.Duration) string {
 // formatRateLimitBar renders one rate limit window as a progress bar using
 // the configured bar style and width, or "" when the window is absent.
 func formatRateLimitBar(rateLimits map[string]any, window, label string, s *State) string {
-	w, ok := rateLimits[window].(map[string]any)
-	if !ok {
-		return ""
-	}
-	pct, ok := w["used_percentage"].(float64)
+	pct, ok := rateLimitPct(rateLimits, window)
 	if !ok {
 		return ""
 	}
@@ -470,7 +475,7 @@ func RenderLines(s *State, in *ClaudeInput) []string {
 	}
 
 	if len(lines) == 0 {
-		lines = []string{FormatSeparator(s)}
+		lines = []string{RenderContextBar(s)}
 	}
 
 	return lines

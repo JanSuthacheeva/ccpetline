@@ -94,16 +94,21 @@ var barChars = map[BarStyle][2]string{
 	BarDot:     {"\u25CF", "\u25CB"},
 }
 
-// renderBarLine renders a plain progress bar filled to pct with the suffix
-// appended, so that bar plus suffix occupy the given total width.
-func renderBarLine(pct float64, suffix string, style BarStyle, width int) string {
-	width = clampBarWidth(width)
-
+// barStyleChars returns the (filled, empty) characters for a bar style,
+// falling back to the classic pair for unknown styles.
+func barStyleChars(style BarStyle) (filled, empty string) {
 	chars, ok := barChars[style]
 	if !ok {
 		chars = barChars[BarClassic]
 	}
-	filled, empty := chars[0], chars[1]
+	return chars[0], chars[1]
+}
+
+// renderBarLine renders a plain progress bar filled to pct with the suffix
+// appended, so that bar plus suffix occupy the given total width.
+func renderBarLine(pct float64, suffix string, style BarStyle, width int) string {
+	width = clampBarWidth(width)
+	filled, empty := barStyleChars(style)
 
 	barWidth := width - cellWidth(suffix)
 	if barWidth < 2 {
@@ -120,15 +125,11 @@ func renderBarLine(pct float64, suffix string, style BarStyle, width int) string
 	return strings.Repeat(filled, filledLen) + strings.Repeat(empty, barWidth-filledLen) + suffix
 }
 
-// FormatSeparator returns a separator line with the pet emoji positioned by context %.
-func FormatSeparator(s *State) string {
+// RenderContextBar returns the context-usage bar line with the pet emoji
+// positioned along the track by context %.
+func RenderContextBar(s *State) string {
 	width := clampBarWidth(s.BarWidth)
-
-	chars, ok := barChars[s.BarStyle]
-	if !ok {
-		chars = barChars[BarClassic]
-	}
-	filled, empty := chars[0], chars[1]
+	filled, empty := barStyleChars(s.BarStyle)
 
 	displayPct := s.ContextPct
 	label := "Ctx"

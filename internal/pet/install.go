@@ -44,7 +44,7 @@ func installToSettingsFile(path string) error {
 		"command": "ccpetline",
 	}
 
-	// Hooks — append to existing entries, skip if ccpetline-hook already present
+	// Hooks - append to existing entries, skip if ccpetline-hook already present
 	hooks, _ := settings["hooks"].(map[string]any)
 	if hooks == nil {
 		hooks = make(map[string]any)
@@ -72,7 +72,7 @@ func installToSettingsFile(path string) error {
 	}
 
 	// Claude Code itself reads and rewrites this file, so never leave it torn.
-	if err := writeFileAtomic(path, append(out, '\n'), 0644); err != nil {
+	if err := writeFileAtomic(path, append(out, '\n'), 0o644); err != nil {
 		return fmt.Errorf("writing settings: %w", err)
 	}
 	return nil

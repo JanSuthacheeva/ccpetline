@@ -28,7 +28,7 @@ func SelfUpdate(tag string) error {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {
-		return fmt.Errorf("download failed: %w", err)
+		return fmt.Errorf("downloading: %w", err)
 	}
 	defer resp.Body.Close()
 

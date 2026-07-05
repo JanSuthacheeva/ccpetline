@@ -16,6 +16,8 @@ var DefaultLines = []string{
 // DefaultSeparator is the default token separator.
 const DefaultSeparator = " | "
 
+// DisplayMode selects whether the pet lines stand alone or wrap another
+// statusline command's output.
 type DisplayMode string
 
 const (
@@ -24,8 +26,10 @@ const (
 	ModeAppend     DisplayMode = "append"
 )
 
+// AllDisplayModes is the ordered list of selectable display modes.
 var AllDisplayModes = []DisplayMode{ModeStandalone, ModePrepend, ModeAppend}
 
+// BarStyle selects the characters the progress bars are drawn with.
 type BarStyle string
 
 const (
@@ -35,8 +39,10 @@ const (
 	BarDot     BarStyle = "dot"
 )
 
+// AllBarStyles is the ordered list of selectable bar styles.
 var AllBarStyles = []BarStyle{BarClassic, BarBlock, BarThin, BarDot}
 
+// BarStyleLabel returns a human-readable name for a bar style.
 func BarStyleLabel(s BarStyle) string {
 	switch s {
 	case BarBlock:
@@ -50,6 +56,7 @@ func BarStyleLabel(s BarStyle) string {
 	}
 }
 
+// DisplayModeLabel returns a human-readable name for a display mode.
 func DisplayModeLabel(m DisplayMode) string {
 	switch m {
 	case ModePrepend:
@@ -61,6 +68,7 @@ func DisplayModeLabel(m DisplayMode) string {
 	}
 }
 
+// Config is the user's persisted configuration in ~/.ccpetline/config.json.
 type Config struct {
 	Species      Species           `json:"species"`
 	ContextMode  ContextMode       `json:"context_mode"`
@@ -83,6 +91,8 @@ type Config struct {
 	PetOnTop   *bool `json:"pet_on_top,omitempty"`
 }
 
+// ConfigPath returns the config file path, or "" when no home directory can
+// be resolved.
 func ConfigPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -128,6 +138,9 @@ func defaultConfig() *Config {
 	}
 }
 
+// LoadConfig reads and normalizes the user config, falling back to defaults
+// when the file is missing or malformed. Every enum field is validated here,
+// so downstream code can trust the values.
 func LoadConfig() *Config {
 	path := ConfigPath()
 	if path == "" {
@@ -198,7 +211,7 @@ func migrateConfig(c *Config) {
 		return
 	}
 
-	// No Lines set — derive from old fields.
+	// No Lines set - derive from old fields.
 	showSnacks := c.ShowSnacks == nil || *c.ShowSnacks
 	petOnTop := c.PetOnTop == nil || *c.PetOnTop
 
@@ -221,6 +234,8 @@ func migrateConfig(c *Config) {
 	c.PetOnTop = nil
 }
 
+// SaveConfig writes the config atomically and pushes the new values into all
+// active session states.
 func SaveConfig(c *Config) error {
 	path := ConfigPath()
 	if path == "" {
@@ -230,7 +245,7 @@ func SaveConfig(c *Config) error {
 	if err != nil {
 		return err
 	}
-	if err := writeFileAtomic(path, data, 0644); err != nil {
+	if err := writeFileAtomic(path, data, 0o644); err != nil {
 		return err
 	}
 	updateActiveSessions(c)

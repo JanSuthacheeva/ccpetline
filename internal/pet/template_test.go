@@ -252,10 +252,10 @@ func TestDefaultLineColors(t *testing.T) {
 	}
 }
 
-// TestFormatSeparatorWidth guards the bar-width fix: the rendered line must
+// TestRenderContextBarWidth guards the bar-width fix: the rendered line must
 // occupy exactly BarWidth display cells regardless of the pet's cell width
 // (emoji are 2 cells, Nerd glyphs 1).
-func TestFormatSeparatorWidth(t *testing.T) {
+func TestRenderContextBarWidth(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		theme IconTheme
@@ -269,7 +269,7 @@ func TestFormatSeparatorWidth(t *testing.T) {
 			Species: SpeciesCat, Size: SizeNormal, ContextPct: 53.1,
 			BarStyle: BarThin, BarShowPet: tc.pet, BarWidth: 50, IconTheme: tc.theme,
 		}
-		out := FormatSeparator(s)
+		out := RenderContextBar(s)
 		if w := cellWidth(out); w != 50 {
 			t.Errorf("%s: width = %d, want 50 (%q)", tc.name, w, out)
 		}

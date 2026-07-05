@@ -21,6 +21,7 @@ func StatePath(sessionID string) string {
 	return filepath.Join(stateDir, fmt.Sprintf("ccpetline-state-%s.json", sessionID))
 }
 
+// Species identifies which pet the user picked.
 type Species string
 
 const (
@@ -31,8 +32,11 @@ const (
 	SpeciesDino   Species = "dino"
 )
 
+// AllSpecies is the ordered list of selectable species.
 var AllSpecies = []Species{SpeciesGoose, SpeciesCat, SpeciesOcean, SpeciesDragon, SpeciesDino}
 
+// ContextMode selects how context usage is displayed: raw ({ctx}) or scaled
+// to the usable window before auto-compact ({ctx_u}).
 type ContextMode string
 
 const (
@@ -60,6 +64,7 @@ func ParseSpecies(s string) Species {
 	}
 }
 
+// Mood is the pet's current activity, derived from recent hook events.
 type Mood int
 
 const (
@@ -75,8 +80,12 @@ const (
 	MoodSleeping
 )
 
-var ActiveMoods = []Mood{MoodEating, MoodChasing, MoodDigging, MoodFetching, MoodPouncing}
-var IdleMoods = []Mood{MoodBored, MoodNapping, MoodGrooming, MoodWandering}
+var (
+	// ActiveMoods are picked randomly while tools are running.
+	ActiveMoods = []Mood{MoodEating, MoodChasing, MoodDigging, MoodFetching, MoodPouncing}
+	// IdleMoods are picked randomly once activity dies down.
+	IdleMoods = []Mood{MoodBored, MoodNapping, MoodGrooming, MoodWandering}
+)
 
 func (m Mood) String() string {
 	switch m {
@@ -149,6 +158,7 @@ func MoodLabel(species Species, mood Mood) string {
 	return mood.String()
 }
 
+// Size is the pet's growth stage, derived from context usage.
 type Size int
 
 const (
@@ -186,6 +196,9 @@ func SizeFromContext(pct float64) Size {
 	}
 }
 
+// State is the per-session pet state persisted between hook and statusline
+// invocations. It duplicates the display settings from Config as a snapshot;
+// ApplyConfig is the single place that copy happens.
 type State struct {
 	Species        Species           `json:"species"`
 	ContextMode    ContextMode       `json:"context_mode"`
@@ -207,6 +220,7 @@ type State struct {
 	LastMoodChange time.Time         `json:"last_mood_change"`
 }
 
+// NewState returns a fresh sleeping pet configured from the user's config.
 func NewState() *State {
 	s := &State{
 		BarShowPet: true,
@@ -241,7 +255,7 @@ func (s *State) ApplyConfig(cfg *Config) {
 const moodCooldown = 60 * time.Second
 
 // Feed processes a snack event.
-func (s *State) Feed(toolName string) {
+func (s *State) Feed() {
 	s.Happiness++
 	s.LastEvent = time.Now()
 	if time.Since(s.LastMoodChange) >= moodCooldown {
@@ -271,7 +285,7 @@ func (s *State) Sleep() {
 }
 
 // ComputeMood derives the current mood from the LastEvent timestamp.
-// This replaces the old Tick() loop — mood is computed on-read.
+// This replaces the old Tick() loop - mood is computed on-read.
 // Mood changes are rate-limited to once per moodCooldown.
 func (s *State) ComputeMood() {
 	if s.Mood == MoodSleeping {
@@ -373,7 +387,7 @@ func SaveState(path string, s *State) error {
 	if err != nil {
 		return fmt.Errorf("marshal state: %w", err)
 	}
-	if err := writeFileAtomic(path, data, 0644); err != nil {
+	if err := writeFileAtomic(path, data, 0o644); err != nil {
 		return fmt.Errorf("write state: %w", err)
 	}
 	return nil

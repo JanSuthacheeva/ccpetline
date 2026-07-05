@@ -10,7 +10,7 @@ import (
 // parent directory is created if missing.
 func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".tmp-*")

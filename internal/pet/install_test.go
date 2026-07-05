@@ -82,7 +82,7 @@ func TestInstallPreservesExistingSettings(t *testing.T) {
 			"PostToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "other-tool"}]}]
 		}
 	}`
-	if err := os.WriteFile(path, []byte(existing), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(existing), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := installToSettingsFile(path); err != nil {
@@ -106,7 +106,7 @@ func TestInstallPreservesExistingSettings(t *testing.T) {
 
 func TestInstallRejectsMalformedSettings(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
-	if err := os.WriteFile(path, []byte("{not json"), 0644); err != nil {
+	if err := os.WriteFile(path, []byte("{not json"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := installToSettingsFile(path); err == nil {

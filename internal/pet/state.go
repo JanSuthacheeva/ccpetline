@@ -6,10 +6,11 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
-const stateDir = "/tmp"
+var stateDir = os.TempDir()
 
 // StatePath returns the state file path for a given session ID.
 // Falls back to a default path if sessionID is empty.
@@ -294,7 +295,12 @@ func CleanStaleStates(maxAge time.Duration) {
 			continue
 		}
 		name := e.Name()
-		if len(name) < 20 || name[:15] != "ccpetline-state" || name[len(name)-5:] != ".json" {
+		if !strings.HasPrefix(name, "ccpetline-state") {
+			continue
+		}
+		// State files end in .json; orphaned temp files (crash between
+		// CreateTemp and rename in SaveState) contain .json.tmp-.
+		if !strings.HasSuffix(name, ".json") && !strings.Contains(name, ".json.tmp-") {
 			continue
 		}
 		info, err := e.Info()
@@ -321,21 +327,37 @@ func LoadState(path string) *State {
 }
 
 // SaveState writes pet state to a JSON file atomically (temp + rename).
+// The temp file name must be unique: the hook, statusline, and config
+// binaries can all write the same state file concurrently.
 func SaveState(path string, s *State) error {
 	data, err := json.Marshal(s)
 	if err != nil {
 		return fmt.Errorf("marshal state: %w", err)
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("create state dir: %w", err)
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return fmt.Errorf("create temp: %w", err)
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
 		return fmt.Errorf("write temp: %w", err)
 	}
-	if err := os.Rename(tmp, path); err != nil {
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmp.Name())
+		return fmt.Errorf("close temp: %w", err)
+	}
+	if err := os.Chmod(tmp.Name(), 0644); err != nil {
+		os.Remove(tmp.Name())
+		return fmt.Errorf("chmod temp: %w", err)
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
 		// Clean up temp file on rename failure
-		os.Remove(tmp)
+		os.Remove(tmp.Name())
 		return fmt.Errorf("rename: %w", err)
 	}
-	// Ensure parent dir exists (for first write)
-	_ = os.MkdirAll(filepath.Dir(path), 0755)
 	return nil
 }

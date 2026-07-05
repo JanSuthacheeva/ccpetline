@@ -1,10 +1,8 @@
 package pet
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -185,8 +183,8 @@ func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
 	}
 
 	// {branch}
-	if out, err := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output(); err == nil {
-		d.Branch = strings.TrimSpace(string(out))
+	if out, err := runCommand("git", "rev-parse", "--abbrev-ref", "HEAD"); err == nil {
+		d.Branch = out
 	}
 
 	// {pet}
@@ -353,15 +351,14 @@ func resolveToken(key string, data *SegmentData) string {
 	return decorateToken(data.IconTheme, key, raw)
 }
 
-// execCommand runs a shell command with a timeout and returns its output.
+// execCommand runs a shell command with the standard timeout and returns its
+// output, or "<err>" so a broken command is visible in the status line.
 func execCommand(cmd string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "sh", "-c", cmd).Output()
+	out, err := runCommand("sh", "-c", cmd)
 	if err != nil {
 		return "<err>"
 	}
-	return strings.TrimSpace(string(out))
+	return out
 }
 
 // ResolvedSegment is a segment whose value has been resolved to display text.
@@ -508,21 +505,18 @@ func RenderLines(s *State, claudeJSON map[string]any) []string {
 
 // gitChanges returns added/removed line counts from both staged and unstaged changes.
 func gitChanges() (added, removed int, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
 	cmds := [][]string{
 		{"git", "diff", "--shortstat"},
 		{"git", "diff", "--cached", "--shortstat"},
 	}
 	failures := 0
 	for _, args := range cmds {
-		out, cmdErr := exec.CommandContext(ctx, args[0], args[1:]...).Output()
+		s, cmdErr := runCommand(args[0], args[1:]...)
 		if cmdErr != nil {
 			failures++
 			err = cmdErr
 			continue
 		}
-		s := string(out)
 		if m := regexp.MustCompile(`(\d+) insertion`).FindStringSubmatch(s); len(m) > 1 {
 			if n, err := strconv.Atoi(m[1]); err == nil {
 				added += n

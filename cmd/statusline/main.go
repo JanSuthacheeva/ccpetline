@@ -1,15 +1,11 @@
 package main
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/jansuthacheeva/ccpetline/internal/pet"
 )
@@ -43,7 +39,7 @@ func main() {
 	petLines := pet.RenderLines(state, claudeJSON)
 
 	if state.DisplayMode == pet.ModePrepend || state.DisplayMode == pet.ModeAppend {
-		wrappedLines := runWrapCommand(state.WrapCommand, data)
+		wrappedLines := pet.RunWrapCommand(state.WrapCommand, data)
 		var combined []string
 		if state.DisplayMode == pet.ModePrepend {
 			combined = append(combined, petLines...)
@@ -62,29 +58,4 @@ func main() {
 			fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", line)
 		}
 	}
-}
-
-// runWrapCommand executes the wrap command with the given stdin data and returns
-// its stdout lines. Returns nil on error or timeout.
-func runWrapCommand(command string, stdinData []byte) []string {
-	if command == "" {
-		return nil
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "sh", "-c", command)
-	cmd.Stdin = bytes.NewReader(stdinData)
-
-	out, err := cmd.Output()
-	if err != nil {
-		return nil
-	}
-
-	raw := strings.TrimRight(string(out), "\n")
-	if raw == "" {
-		return nil
-	}
-	return strings.Split(raw, "\n")
 }

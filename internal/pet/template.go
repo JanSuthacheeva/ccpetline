@@ -168,8 +168,8 @@ type SegmentData struct {
 	Limit7dBar string
 }
 
-// BuildSegmentData resolves all token values from state, Claude JSON, and OS.
-func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
+// BuildSegmentData resolves all token values from state, Claude input, and OS.
+func BuildSegmentData(s *State, in *ClaudeInput) *SegmentData {
 	d := &SegmentData{IconTheme: s.IconTheme}
 
 	// {cwd}
@@ -199,43 +199,37 @@ func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
 	// {bar}
 	d.Bar = FormatSeparator(s)
 
-	// Fields from claudeJSON
-	if claudeJSON == nil {
+	// Fields from the Claude payload
+	if in == nil {
 		return d
 	}
 
 	// {model}
-	if model, ok := claudeJSON["model"].(map[string]any); ok {
-		if name, ok := model["display_name"].(string); ok && name != "" {
-			d.Model = name
-		} else if id, ok := model["id"].(string); ok && id != "" {
-			d.Model = id
-		}
+	if in.Model.DisplayName != "" {
+		d.Model = in.Model.DisplayName
+	} else if in.Model.ID != "" {
+		d.Model = in.Model.ID
 	}
 
 	// {ctx}
-	if cw, ok := claudeJSON["context_window"].(map[string]any); ok {
-		if pct, ok := cw["used_percentage"].(float64); ok && pct > 0 {
-			d.Ctx = fmt.Sprintf("%.0f%%", pct)
-		}
+	if pct := in.ContextWindow.UsedPercentage; pct != nil && *pct > 0 {
+		d.Ctx = fmt.Sprintf("%.0f%%", *pct)
 	}
 
 	// {cost}
-	if cost, ok := claudeJSON["cost"].(map[string]any); ok {
-		if total, ok := cost["total_cost_usd"].(float64); ok && total > 0 {
-			d.Cost = fmt.Sprintf("%.2f", total)
-		}
+	if in.Cost.TotalCostUSD > 0 {
+		d.Cost = fmt.Sprintf("%.2f", in.Cost.TotalCostUSD)
 	}
 
-	// {5h} and {7d} — subscription rate limit usage.
+	// {5h} and {7d} - subscription rate limit usage.
 	// Absent until the first API response of the session; each window
 	// may be independently missing, so resolve them separately.
-	if rl, ok := claudeJSON["rate_limits"].(map[string]any); ok {
+	if in.RateLimits != nil {
 		now := time.Now()
-		d.Limit5h = formatRateLimit(rl, "five_hour", "5h", now)
-		d.Limit7d = formatRateLimit(rl, "seven_day", "7d", now)
-		d.Limit5hBar = formatRateLimitBar(rl, "five_hour", "5h", s)
-		d.Limit7dBar = formatRateLimitBar(rl, "seven_day", "7d", s)
+		d.Limit5h = formatRateLimit(in.RateLimits, "five_hour", "5h", now)
+		d.Limit7d = formatRateLimit(in.RateLimits, "seven_day", "7d", now)
+		d.Limit5hBar = formatRateLimitBar(in.RateLimits, "five_hour", "5h", s)
+		d.Limit7dBar = formatRateLimitBar(in.RateLimits, "seven_day", "7d", s)
 	}
 
 	// {changes} — staged + unstaged git line changes
@@ -473,8 +467,8 @@ func RenderTemplate(tmpl string, data *SegmentData) string {
 
 // RenderLines renders all configured line templates, skipping empty results.
 // Falls back to a single {bar} line if everything is empty.
-func RenderLines(s *State, claudeJSON map[string]any) []string {
-	data := BuildSegmentData(s, claudeJSON)
+func RenderLines(s *State, in *ClaudeInput) []string {
+	data := BuildSegmentData(s, in)
 
 	var lines []string
 	for i, tmpl := range s.Lines {

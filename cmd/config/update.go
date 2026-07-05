@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"unicode"
 
@@ -767,8 +766,12 @@ func (m *model) save() {
 		Powerline:    powerline,
 		PowerlineSep: m.powerlineSep,
 	}
+	// bubbletea owns the terminal, so stderr would be invisible or garbled;
+	// surface persistence failures in the view instead.
 	if err := pet.SaveConfig(cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "Error saving config: %v\n", err)
+		m.saveErr = fmt.Sprintf("Error saving config: %v", err)
+	} else {
+		m.saveErr = ""
 	}
 }
 

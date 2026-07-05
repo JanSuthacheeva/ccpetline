@@ -18,6 +18,7 @@ var (
 	hintStyle   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "236", Dark: "255"}).Italic(true)
 	valueStyle  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "28", Dark: "114"})
 	checkStyle  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "22", Dark: "78"})
+	errStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "124", Dark: "196"}).Bold(true)
 	boxStyle    = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.AdaptiveColor{Light: "55", Dark: "63"}).
@@ -235,6 +236,7 @@ type model struct {
 	barStyleCursor int
 
 	installStatus string
+	saveErr       string
 
 	latestVersion   string
 	updateAvailable bool

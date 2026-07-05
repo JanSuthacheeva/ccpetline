@@ -98,6 +98,11 @@ func (m model) View() string {
 	case sectionUpdate:
 		m.viewUpdate(&b)
 	}
+	if m.saveErr != "" {
+		b.WriteString("\n")
+		b.WriteString(errStyle.Render("  " + m.saveErr))
+		b.WriteString("\n")
+	}
 	b.WriteString("\n")
 	return b.String()
 }

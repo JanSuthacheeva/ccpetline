@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -11,51 +10,43 @@ import (
 )
 
 func main() {
+	// The statusline is best-effort display code: it never exits non-zero.
+	// Missing or malformed stdin just renders the pet from persisted state.
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
-		os.Exit(1)
+		data = nil
 	}
+	in := pet.ParseClaudeInput(data)
 
-	// Load pet state, update context from Claude's JSON, compute mood
-	var claudeJSON map[string]any
 	var sessionID string
-	if json.Unmarshal(data, &claudeJSON) == nil {
-		if sid, ok := claudeJSON["session_id"].(string); ok {
-			sessionID = sid
-		}
+	if in != nil {
+		sessionID = in.SessionID
 	}
 	statePath := pet.StatePath(sessionID)
 	state := pet.LoadState(statePath)
-	if claudeJSON != nil {
-		if cw, ok := claudeJSON["context_window"].(map[string]any); ok {
-			if pct, ok := cw["used_percentage"].(float64); ok {
-				state.SetContext(pct)
-			}
-		}
+	if in != nil && in.ContextWindow.UsedPercentage != nil {
+		state.SetContext(*in.ContextWindow.UsedPercentage)
 	}
 	state.ComputeMood()
-	_ = pet.SaveState(statePath, state)
+	if err := pet.SaveState(statePath, state); err != nil {
+		fmt.Fprintf(os.Stderr, "ccpetline: saving state: %v\n", err)
+	}
 
-	petLines := pet.RenderLines(state, claudeJSON)
+	lines := pet.RenderLines(state, in)
 
 	if state.DisplayMode == pet.ModePrepend || state.DisplayMode == pet.ModeAppend {
-		wrappedLines := pet.RunWrapCommand(state.WrapCommand, data)
-		var combined []string
+		wrapped := pet.RunWrapCommand(state.WrapCommand, data)
 		if state.DisplayMode == pet.ModePrepend {
-			combined = append(combined, petLines...)
-			combined = append(combined, wrappedLines...)
+			lines = append(lines, wrapped...)
 		} else {
-			combined = append(combined, wrappedLines...)
-			combined = append(combined, petLines...)
+			lines = append(wrapped, lines...)
 		}
-		for _, line := range combined {
-			line = strings.ReplaceAll(line, " ", "\u00A0")
-			fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", line)
-		}
-	} else {
-		for _, line := range petLines {
-			line = strings.ReplaceAll(line, " ", "\u00A0")
-			fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", line)
-		}
+	}
+
+	for _, line := range lines {
+		// Claude Code collapses runs of regular spaces in statusline output,
+		// so substitute NBSP to preserve the layout.
+		line = strings.ReplaceAll(line, " ", "\u00A0")
+		fmt.Fprintf(os.Stdout, "\x1b[0m%s\n", line)
 	}
 }

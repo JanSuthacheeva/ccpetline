@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -9,33 +9,26 @@ import (
 	"github.com/jansuthacheeva/ccpetline/internal/pet"
 )
 
-// hookInput is the JSON structure Claude Code sends on stdin to hooks.
-type hookInput struct {
-	SessionID     string `json:"session_id"`
-	HookEventName string `json:"hook_event_name"`
-	Source        string `json:"source"`
-	ToolName      string `json:"tool_name"`
-}
-
 func main() {
+	// The hook runs async and best-effort: it always exits 0 and reports
+	// problems on stderr only.
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
-		os.Exit(0) // fail silently — async hook
+		return
+	}
+	in := pet.ParseClaudeInput(data)
+	if in == nil {
+		return
 	}
 
-	var h hookInput
-	if err := json.Unmarshal(data, &h); err != nil {
-		os.Exit(0)
-	}
-
-	statePath := pet.StatePath(h.SessionID)
+	statePath := pet.StatePath(in.SessionID)
 	state := pet.LoadState(statePath)
 
-	switch h.HookEventName {
+	switch in.HookEventName {
 	case "PostToolUse":
-		state.Feed(h.ToolName)
+		state.Feed(in.ToolName)
 	case "SessionStart":
-		if h.Source == "resume" {
+		if in.Source == "resume" {
 			state.Wake()
 		} else {
 			state = pet.NewState()
@@ -45,10 +38,10 @@ func main() {
 	case "SessionEnd":
 		state.Sleep()
 	default:
-		os.Exit(0)
+		return
 	}
 
 	if err := pet.SaveState(statePath, state); err != nil {
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "ccpetline-hook: saving state: %v\n", err)
 	}
 }

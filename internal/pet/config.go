@@ -2,6 +2,7 @@ package pet
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -210,18 +211,14 @@ func migrateConfig(c *Config) {
 
 func SaveConfig(c *Config) error {
 	path := ConfigPath()
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return err
+	if path == "" {
+		return fmt.Errorf("cannot resolve config path: no home directory")
 	}
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
+	if err := writeFileAtomic(path, data, 0644); err != nil {
 		return err
 	}
 	updateActiveSessions(c)

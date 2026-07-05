@@ -332,38 +332,16 @@ func LoadState(path string) *State {
 	return &s
 }
 
-// SaveState writes pet state to a JSON file atomically (temp + rename).
-// The temp file name must be unique: the hook, statusline, and config
-// binaries can all write the same state file concurrently.
+// SaveState writes pet state to a JSON file atomically. The write goes
+// through writeFileAtomic because the hook, statusline, and config binaries
+// can all save the same state file concurrently.
 func SaveState(path string, s *State) error {
 	data, err := json.Marshal(s)
 	if err != nil {
 		return fmt.Errorf("marshal state: %w", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return fmt.Errorf("create state dir: %w", err)
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
-	if err != nil {
-		return fmt.Errorf("create temp: %w", err)
-	}
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		os.Remove(tmp.Name())
-		return fmt.Errorf("write temp: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmp.Name())
-		return fmt.Errorf("close temp: %w", err)
-	}
-	if err := os.Chmod(tmp.Name(), 0644); err != nil {
-		os.Remove(tmp.Name())
-		return fmt.Errorf("chmod temp: %w", err)
-	}
-	if err := os.Rename(tmp.Name(), path); err != nil {
-		// Clean up temp file on rename failure
-		os.Remove(tmp.Name())
-		return fmt.Errorf("rename: %w", err)
+	if err := writeFileAtomic(path, data, 0644); err != nil {
+		return fmt.Errorf("write state: %w", err)
 	}
 	return nil
 }

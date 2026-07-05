@@ -550,66 +550,30 @@ func (m model) viewTextEdit(b *strings.Builder) {
 		cursorStyle.Render("\u2588")))
 }
 
-// renderColoredPreview renders a line with lipgloss colors for the TUI preview.
+// renderColoredPreview renders a line with lipgloss colors for the TUI
+// preview. Tokens resolve against sample data and commands show a [cmd]
+// placeholder instead of executing; the assembly itself is shared with the
+// real statusline renderer via pet.AssembleColoredLine.
 func (m model) renderColoredPreview(segs []pet.Segment, colors []uint8, sample *pet.SegmentData) string {
-	type item struct {
-		text  string
-		kind  pet.SegmentKind
-		color uint8
-	}
-	var items []item
-	for i, seg := range segs {
-		var c uint8
-		if i < len(colors) {
-			c = colors[i]
-		}
-		var text string
+	items := pet.ResolveSegments(segs, colors, func(seg pet.Segment) string {
 		switch seg.Kind {
 		case pet.KindToken:
-			text = pet.RenderTemplate("{"+seg.Value+"}", sample)
+			return pet.RenderTemplate("{"+seg.Value+"}", sample)
 		case pet.KindSeparator:
-			text = seg.Value
-			if text == "" {
-				text = m.separator
+			if seg.Value == "" {
+				return m.separator
 			}
-		case pet.KindCommand:
-			text = "[cmd]"
+			return seg.Value
+		default:
+			return "[cmd]"
 		}
-		items = append(items, item{text: text, kind: seg.Kind, color: c})
-	}
-	// Filter empty tokens.
-	var filtered []item
-	for _, r := range items {
-		if r.kind != pet.KindSeparator && r.text == "" {
-			continue
+	})
+	return pet.AssembleColoredLine(items, func(text string, color uint8) string {
+		if color == 0 {
+			return text
 		}
-		filtered = append(filtered, r)
-	}
-	// Remove dangling separators.
-	var cleaned []item
-	for i, r := range filtered {
-		if r.kind == pet.KindSeparator {
-			if len(cleaned) == 0 || i == len(filtered)-1 || cleaned[len(cleaned)-1].kind == pet.KindSeparator {
-				continue
-			}
-		}
-		cleaned = append(cleaned, r)
-	}
-	if len(cleaned) > 0 && cleaned[len(cleaned)-1].kind == pet.KindSeparator {
-		cleaned = cleaned[:len(cleaned)-1]
-	}
-	var b strings.Builder
-	for i, r := range cleaned {
-		if i > 0 && r.kind != pet.KindSeparator && cleaned[i-1].kind != pet.KindSeparator {
-			b.WriteByte(' ')
-		}
-		text := r.text
-		if r.color != 0 {
-			text = lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("%d", r.color))).Render(text)
-		}
-		b.WriteString(text)
-	}
-	return b.String()
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("%d", color))).Render(text)
+	})
 }
 
 func (m model) viewColorPicker(b *strings.Builder) {

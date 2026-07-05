@@ -1,6 +1,7 @@
 package pet
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -48,6 +49,41 @@ func TestFormatRateLimit(t *testing.T) {
 
 	if got := formatRateLimit(map[string]any{}, "seven_day", "7d", now); got != "" {
 		t.Errorf("formatRateLimit for absent window = %q, want empty", got)
+	}
+}
+
+func TestAssembleColoredLine(t *testing.T) {
+	sep := ResolvedSegment{Text: "|", Kind: KindSeparator}
+	tok := func(s string) ResolvedSegment { return ResolvedSegment{Text: s, Kind: KindToken} }
+	plain := func(text string, _ uint8) string { return text }
+
+	tests := []struct {
+		name  string
+		items []ResolvedSegment
+		want  string
+	}{
+		{"auto-spacing between tokens", []ResolvedSegment{tok("a"), tok("b")}, "a b"},
+		{"separator kept between tokens", []ResolvedSegment{tok("a"), sep, tok("b")}, "a|b"},
+		{"empty token dropped with its separator", []ResolvedSegment{tok("a"), sep, tok(""), sep, tok("b")}, "a|b"},
+		{"leading separator dropped", []ResolvedSegment{sep, tok("a")}, "a"},
+		{"trailing separator dropped", []ResolvedSegment{tok("a"), sep}, "a"},
+		{"all empty", []ResolvedSegment{tok(""), sep}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := AssembleColoredLine(tt.items, plain); got != tt.want {
+				t.Errorf("AssembleColoredLine = %q, want %q", got, tt.want)
+			}
+		})
+	}
+
+	// The colorize callback receives each segment's color.
+	items := []ResolvedSegment{{Text: "a", Kind: KindToken, Color: 7}}
+	got := AssembleColoredLine(items, func(text string, color uint8) string {
+		return fmt.Sprintf("<%d>%s", color, text)
+	})
+	if got != "<7>a" {
+		t.Errorf("colorize not applied: %q", got)
 	}
 }
 

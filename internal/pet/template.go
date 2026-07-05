@@ -364,69 +364,86 @@ func execCommand(cmd string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// RenderColoredLine resolves segments, filters empties and dangling separators,
-// auto-spaces between non-separator segments, and applies per-segment colors.
-func RenderColoredLine(segs []Segment, colors []uint8, data *SegmentData) string {
-	// Resolve each segment's text.
-	type resolved struct {
-		text  string
-		kind  SegmentKind
-		color uint8
-	}
-	items := make([]resolved, len(segs))
+// ResolvedSegment is a segment whose value has been resolved to display text.
+type ResolvedSegment struct {
+	Text  string
+	Kind  SegmentKind
+	Color uint8
+}
+
+// ResolveSegments pairs each segment with its color and resolves it to
+// display text using resolve.
+func ResolveSegments(segs []Segment, colors []uint8, resolve func(Segment) string) []ResolvedSegment {
+	items := make([]ResolvedSegment, len(segs))
 	for i, seg := range segs {
 		var color uint8
 		if i < len(colors) {
 			color = colors[i]
 		}
-		switch seg.Kind {
-		case KindToken:
-			items[i] = resolved{text: resolveToken(seg.Value, data), kind: KindToken, color: color}
-		case KindCommand:
-			items[i] = resolved{text: execCommand(seg.Value), kind: KindCommand, color: color}
-		case KindSeparator:
-			items[i] = resolved{text: seg.Value, kind: KindSeparator, color: color}
-		}
+		items[i] = ResolvedSegment{Text: resolve(seg), Kind: seg.Kind, Color: color}
 	}
+	return items
+}
 
+// AssembleColoredLine filters empty tokens and dangling separators, auto-spaces
+// between non-separator segments, and joins the results, coloring each segment
+// with colorize. It is the single assembly pipeline shared by the statusline
+// renderer and the config TUI preview so the two cannot drift.
+func AssembleColoredLine(items []ResolvedSegment, colorize func(text string, color uint8) string) string {
 	// Filter empty tokens and dangling separators.
-	var filtered []resolved
+	var filtered []ResolvedSegment
 	for _, r := range items {
-		if r.kind != KindSeparator && r.text == "" {
+		if r.Kind != KindSeparator && r.Text == "" {
 			continue
 		}
 		filtered = append(filtered, r)
 	}
 	// Remove leading/trailing separators and collapse adjacent separators.
-	var cleaned []resolved
+	var cleaned []ResolvedSegment
 	for i, r := range filtered {
-		if r.kind == KindSeparator {
+		if r.Kind == KindSeparator {
 			if len(cleaned) == 0 {
 				continue // leading separator
 			}
 			if i == len(filtered)-1 {
 				continue // trailing separator
 			}
-			if cleaned[len(cleaned)-1].kind == KindSeparator {
+			if cleaned[len(cleaned)-1].Kind == KindSeparator {
 				continue // consecutive separator
 			}
 		}
 		cleaned = append(cleaned, r)
 	}
 	// Remove trailing separator that might remain.
-	if len(cleaned) > 0 && cleaned[len(cleaned)-1].kind == KindSeparator {
+	if len(cleaned) > 0 && cleaned[len(cleaned)-1].Kind == KindSeparator {
 		cleaned = cleaned[:len(cleaned)-1]
 	}
 
 	// Build output with auto-spacing and colors.
 	var b strings.Builder
 	for i, r := range cleaned {
-		if i > 0 && r.kind != KindSeparator && cleaned[i-1].kind != KindSeparator {
+		if i > 0 && r.Kind != KindSeparator && cleaned[i-1].Kind != KindSeparator {
 			b.WriteByte(' ')
 		}
-		b.WriteString(ColorSegment(r.text, r.color))
+		b.WriteString(colorize(r.Text, r.Color))
 	}
 	return b.String()
+}
+
+// RenderColoredLine resolves segments, filters empties and dangling separators,
+// auto-spaces between non-separator segments, and applies per-segment colors.
+func RenderColoredLine(segs []Segment, colors []uint8, data *SegmentData) string {
+	items := ResolveSegments(segs, colors, func(seg Segment) string {
+		switch seg.Kind {
+		case KindToken:
+			return resolveToken(seg.Value, data)
+		case KindCommand:
+			return execCommand(seg.Value)
+		default:
+			return seg.Value
+		}
+	})
+	return AssembleColoredLine(items, ColorSegment)
 }
 
 // RenderTemplate replaces {token} placeholders and [cmd: ...] commands,

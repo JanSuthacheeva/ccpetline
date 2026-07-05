@@ -233,6 +233,39 @@ func (m model) updateWrapCommandPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// applyEditKey applies a text-editing key (backspace, cursor movement,
+// printable rune insertion) to a rune buffer with its cursor position.
+// maxLen 0 means unlimited. All TUI line editors share this handler.
+func applyEditKey(buf []rune, cursor int, msg tea.KeyMsg, maxLen int) ([]rune, int) {
+	switch msg.String() {
+	case "backspace":
+		if len(buf) > 0 && cursor > 0 {
+			buf = append(buf[:cursor-1], buf[cursor:]...)
+			cursor--
+		}
+	case "left":
+		if cursor > 0 {
+			cursor--
+		}
+	case "right":
+		if cursor < len(buf) {
+			cursor++
+		}
+	default:
+		for _, r := range msg.String() {
+			if unicode.IsPrint(r) && (maxLen == 0 || len(buf) < maxLen) {
+				newBuf := make([]rune, len(buf)+1)
+				copy(newBuf, buf[:cursor])
+				newBuf[cursor] = r
+				copy(newBuf[cursor+1:], buf[cursor:])
+				buf = newBuf
+				cursor++
+			}
+		}
+	}
+	return buf, cursor
+}
+
 func (m model) updateWrapCommandEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
@@ -241,30 +274,8 @@ func (m model) updateWrapCommandEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.wrapCommand = string(m.editBuf)
 		m.save()
 		m.section = sectionMenu
-	case "backspace":
-		if len(m.editBuf) > 0 && m.editCursor > 0 {
-			m.editBuf = append(m.editBuf[:m.editCursor-1], m.editBuf[m.editCursor:]...)
-			m.editCursor--
-		}
-	case "left":
-		if m.editCursor > 0 {
-			m.editCursor--
-		}
-	case "right":
-		if m.editCursor < len(m.editBuf) {
-			m.editCursor++
-		}
 	default:
-		for _, r := range msg.String() {
-			if unicode.IsPrint(r) {
-				newBuf := make([]rune, len(m.editBuf)+1)
-				copy(newBuf, m.editBuf[:m.editCursor])
-				newBuf[m.editCursor] = r
-				copy(newBuf[m.editCursor+1:], m.editBuf[m.editCursor:])
-				m.editBuf = newBuf
-				m.editCursor++
-			}
-		}
+		m.editBuf, m.editCursor = applyEditKey(m.editBuf, m.editCursor, msg, 0)
 	}
 	return m, nil
 }
@@ -398,30 +409,8 @@ func (m model) updateSeparator(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.separator = " " + sep + " "
 		m.save()
 		m.section = sectionMenu
-	case "backspace":
-		if len(m.editBuf) > 0 && m.editCursor > 0 {
-			m.editBuf = append(m.editBuf[:m.editCursor-1], m.editBuf[m.editCursor:]...)
-			m.editCursor--
-		}
-	case "left":
-		if m.editCursor > 0 {
-			m.editCursor--
-		}
-	case "right":
-		if m.editCursor < len(m.editBuf) {
-			m.editCursor++
-		}
 	default:
-		for _, r := range msg.String() {
-			if unicode.IsPrint(r) && len(m.editBuf) < 3 {
-				newBuf := make([]rune, len(m.editBuf)+1)
-				copy(newBuf, m.editBuf[:m.editCursor])
-				newBuf[m.editCursor] = r
-				copy(newBuf[m.editCursor+1:], m.editBuf[m.editCursor:])
-				m.editBuf = newBuf
-				m.editCursor++
-			}
-		}
+		m.editBuf, m.editCursor = applyEditKey(m.editBuf, m.editCursor, msg, 3)
 	}
 	return m, nil
 }
@@ -626,30 +615,8 @@ func (m model) updateTextEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.mode = modeList
 		m.save()
-	case "backspace":
-		if len(m.editBuf) > 0 && m.editCursor > 0 {
-			m.editBuf = append(m.editBuf[:m.editCursor-1], m.editBuf[m.editCursor:]...)
-			m.editCursor--
-		}
-	case "left":
-		if m.editCursor > 0 {
-			m.editCursor--
-		}
-	case "right":
-		if m.editCursor < len(m.editBuf) {
-			m.editCursor++
-		}
 	default:
-		for _, r := range msg.String() {
-			if unicode.IsPrint(r) {
-				newBuf := make([]rune, len(m.editBuf)+1)
-				copy(newBuf, m.editBuf[:m.editCursor])
-				newBuf[m.editCursor] = r
-				copy(newBuf[m.editCursor+1:], m.editBuf[m.editCursor:])
-				m.editBuf = newBuf
-				m.editCursor++
-			}
-		}
+		m.editBuf, m.editCursor = applyEditKey(m.editBuf, m.editCursor, msg, 0)
 	}
 	return m, nil
 }

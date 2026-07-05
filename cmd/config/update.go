@@ -150,7 +150,11 @@ func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.editCursor = len(m.editBuf)
 		}
 		if dest == sectionInstall {
-			m.installStatus = installToClaudeCode()
+			if err := pet.InstallToClaudeCode(); err != nil {
+				m.installStatus = fmt.Sprintf("Error: %v", err)
+			} else {
+				m.installStatus = "Installed! Restart Claude Code to activate."
+			}
 		}
 		m.section = dest
 	}

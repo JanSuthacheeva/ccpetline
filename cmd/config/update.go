@@ -39,6 +39,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case updateDoneMsg:
+		m.updateErr = msg.err != nil
 		if msg.err != nil {
 			m.updateStatus = fmt.Sprintf("Error: %v", msg.err)
 		} else {
@@ -138,6 +139,7 @@ func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		dest := items[idx].section
 		if dest == sectionUpdate {
 			m.updateStatus = ""
+			m.updateErr = false
 			m.section = sectionUpdate
 			tag := m.latestVersion
 			return m, func() tea.Msg {
@@ -170,7 +172,7 @@ func (m model) updateUpdateResult(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.updateWaitKey = true
 		return m, nil
 	}
-	if strings.HasPrefix(m.updateStatus, "Error:") {
+	if m.updateErr {
 		m.section = sectionMenu
 		return m, nil
 	}
@@ -193,7 +195,7 @@ func (m model) updateDisplayMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "enter":
 		m.displayMode = modes[m.displayCursor]
-		m.save()
+		m = m.save()
 		if m.displayMode != pet.ModeStandalone {
 			m.wrapPickerCursor = 0
 			m.section = sectionWrapCommandPicker
@@ -225,7 +227,7 @@ func (m model) updateWrapCommandPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.section = sectionWrapCommandEdit
 		} else {
 			m.wrapCommand = opt.command
-			m.save()
+			m = m.save()
 			m.section = sectionMenu
 		}
 	}
@@ -271,7 +273,7 @@ func (m model) updateWrapCommandEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.section = sectionMenu
 	case "enter":
 		m.wrapCommand = string(m.editBuf)
-		m.save()
+		m = m.save()
 		m.section = sectionMenu
 	default:
 		m.editBuf, m.editCursor = applyEditKey(m.editBuf, m.editCursor, msg, 0)
@@ -293,7 +295,7 @@ func (m model) updateSpecies(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "enter":
 		m.current = m.options[m.cursor].species
-		m.save()
+		m = m.save()
 		m.section = sectionMenu
 	}
 	return m, nil
@@ -313,14 +315,15 @@ func (m model) styleRowCount() int {
 	return 3
 }
 
-func (m *model) clampStyleCursor() {
+func (m model) clampStyleCursor() model {
 	if rows := m.styleRowCount(); m.styleCursor >= rows {
 		m.styleCursor = rows - 1
 	}
+	return m
 }
 
 // styleAdjust toggles or cycles the focused Style row, then persists.
-func (m *model) styleAdjust(delta int) {
+func (m model) styleAdjust(delta int) model {
 	switch m.styleCursor {
 	case styleRowNerdFont:
 		m.nerdFont = !m.nerdFont
@@ -331,7 +334,7 @@ func (m *model) styleAdjust(delta int) {
 			m.iconTheme = pet.IconThemeText
 			m.powerline = false
 		}
-		m.clampStyleCursor()
+		m = m.clampStyleCursor()
 	case styleRowIcons:
 		if m.iconTheme == pet.IconThemeNerd {
 			m.iconTheme = pet.IconThemeText
@@ -340,11 +343,11 @@ func (m *model) styleAdjust(delta int) {
 		}
 	case styleRowPowerline:
 		m.powerline = !m.powerline
-		m.clampStyleCursor()
+		m = m.clampStyleCursor()
 	case styleRowSeparator:
 		m.powerlineSep = cyclePowerlineSep(m.powerlineSep, delta)
 	}
-	m.save()
+	return m.save()
 }
 
 func (m model) updateStyle(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -357,7 +360,7 @@ func (m model) updateStyle(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.section = sectionMenu
 		}
 	case "enter":
-		m.save()
+		m = m.save()
 		m.firstRun = false
 		m.section = sectionMenu
 	case "up", "k":
@@ -369,9 +372,9 @@ func (m model) updateStyle(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.styleCursor++
 		}
 	case "left", "h":
-		m.styleAdjust(-1)
+		m = m.styleAdjust(-1)
 	case "right", "l", " ":
-		m.styleAdjust(1)
+		m = m.styleAdjust(1)
 	}
 	return m, nil
 }
@@ -390,7 +393,7 @@ func (m model) updateContextMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "enter":
 		m.currentCtxMode = m.ctxOptions[m.ctxCursor].mode
-		m.save()
+		m = m.save()
 		m.section = sectionMenu
 	}
 	return m, nil
@@ -406,7 +409,7 @@ func (m model) updateSeparator(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			sep = "|"
 		}
 		m.separator = " " + sep + " "
-		m.save()
+		m = m.save()
 		m.section = sectionMenu
 	default:
 		m.editBuf, m.editCursor = applyEditKey(m.editBuf, m.editCursor, msg, 3)
@@ -450,13 +453,14 @@ func (m model) currentSegments() []pet.Segment {
 	return m.lines[m.lineFocused]
 }
 
-func (m *model) clampSegCursor() {
+func (m model) clampSegCursor() model {
 	segs := m.lines[m.lineFocused]
 	if len(segs) == 0 {
 		m.segCursor = 0
 	} else if m.segCursor >= len(segs) {
 		m.segCursor = len(segs) - 1
 	}
+	return m
 }
 
 func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -512,14 +516,14 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				newColors = append(newColors, colors[m.segCursor+1:]...)
 				m.lineColors[m.lineFocused] = newColors
 			}
-			m.clampSegCursor()
-			m.save()
+			m = m.clampSegCursor()
+			m = m.save()
 		}
 	case "c":
 		m.lines[m.lineFocused] = nil
 		m.lineColors[m.lineFocused] = nil
 		m.segCursor = 0
-		m.save()
+		m = m.save()
 	case "enter", "left", "right":
 		if len(segs) > 0 {
 			m.mode = modePicker
@@ -548,9 +552,9 @@ func (m model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch item {
 		case "Separator":
 			seg := pet.Segment{Kind: pet.KindSeparator}
-			m.applySegment(seg)
+			m = m.applySegment(seg)
 			m.mode = modeList
-			m.save()
+			m = m.save()
 		case "Command":
 			m.mode = modeCmdEdit
 			m.editBuf = nil
@@ -558,15 +562,15 @@ func (m model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.editInPlace = false
 		default:
 			seg := pet.Segment{Kind: pet.KindToken, Value: item}
-			m.applySegment(seg)
+			m = m.applySegment(seg)
 			m.mode = modeList
-			m.save()
+			m = m.save()
 		}
 	}
 	return m, nil
 }
 
-func (m *model) applySegment(seg pet.Segment) {
+func (m model) applySegment(seg pet.Segment) model {
 	segs := m.lines[m.lineFocused]
 	colors := m.lineColors[m.lineFocused]
 	if m.pickerReplace {
@@ -595,6 +599,7 @@ func (m *model) applySegment(seg pet.Segment) {
 		// Append 0 color.
 		m.lineColors[m.lineFocused] = append(colors, 0)
 	}
+	return m
 }
 
 func (m model) updateTextEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -610,10 +615,10 @@ func (m model) updateTextEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				segs[m.segCursor] = seg
 			}
 		} else {
-			m.applySegment(seg)
+			m = m.applySegment(seg)
 		}
 		m.mode = modeList
-		m.save()
+		m = m.save()
 	default:
 		m.editBuf, m.editCursor = applyEditKey(m.editBuf, m.editCursor, msg, 0)
 	}
@@ -650,7 +655,7 @@ func (m model) updateColorPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		colors[m.segCursor] = color
 		m.lineColors[m.lineFocused] = colors
-		m.save()
+		m = m.save()
 		m.section = sectionLineEdit
 		m.mode = modeList
 	}
@@ -689,26 +694,26 @@ func (m model) updateBarStyle(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if m.barStyleCursor < len(pet.AllBarStyles) {
 			m.barStyle = pet.AllBarStyles[m.barStyleCursor]
-			m.save()
+			m = m.save()
 		} else if m.barStyleCursor == barRowPetToggle {
 			m.barShowPet = !m.barShowPet
-			m.save()
+			m = m.save()
 		}
 	case "left", "h", "-":
 		if m.barStyleCursor == barRowWidth && m.barWidth > pet.MinBarWidth {
 			m.barWidth--
-			m.save()
+			m = m.save()
 		}
 	case "right", "l", "+", "=":
 		if m.barStyleCursor == barRowWidth && m.barWidth < pet.MaxBarWidth {
 			m.barWidth++
-			m.save()
+			m = m.save()
 		}
 	}
 	return m, nil
 }
 
-func (m *model) save() {
+func (m model) save() model {
 	var lines []string
 	for i := 0; i < maxLines; i++ {
 		if len(m.lines[i]) > 0 {
@@ -773,6 +778,7 @@ func (m *model) save() {
 	} else {
 		m.saveErr = ""
 	}
+	return m
 }
 
 // --- Views ---

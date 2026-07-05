@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -112,25 +113,6 @@ func (m model) menuItems() []menuItem {
 	return items
 }
 
-var tokenEmoji = map[string]string{
-	"pet":     "\U0001F43E",
-	"mood":    "\U0001F60A",
-	"joy":     "\U0001F496",
-	"bar":     "\U0001F4CA",
-	"ctx_bar": "\U0001F4CA",
-	"model":   "\U0001F916",
-	"ctx":     "\U0001F4D0",
-	"cost":    "\U0001F4B0",
-	"changes": "\U0001F4DD",
-	"cwd":     "\U0001F4C2",
-	"dir":     "\U0001F4C1",
-	"branch":  "\U0001F33F",
-	"5h":      "⏳",
-	"7d":      "\U0001F4C5",
-	"5h_bar":  "\U0001F4CA",
-	"7d_bar":  "\U0001F4CA",
-}
-
 // colorPalette is the curated set of ANSI 256 colors available in the picker.
 var colorPalette = []uint8{
 	0, 196, 208, 220, 226,
@@ -179,7 +161,7 @@ func colorLabel(c uint8) string {
 	case 245:
 		return "gray"
 	default:
-		return fmt.Sprintf("%d", c)
+		return strconv.Itoa(int(c))
 	}
 }
 
@@ -241,6 +223,7 @@ type model struct {
 	latestVersion   string
 	updateAvailable bool
 	updateStatus    string
+	updateErr       bool
 	updateWaitKey   bool
 
 	quitting bool

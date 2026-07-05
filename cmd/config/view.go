@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -38,9 +39,15 @@ func (m model) viewBarStyle(b *strings.Builder) {
 	row(b, m.barStyleCursor == barRowPetToggle, "\U0001F43E", petText)
 
 	// Width row
-	widthText := fmt.Sprintf("Bar width %s", valueStyle.Render(fmt.Sprintf("%d", m.barWidth)))
+	widthText := fmt.Sprintf("Bar width %s", valueStyle.Render(strconv.Itoa(m.barWidth)))
 	row(b, m.barStyleCursor == barRowWidth, "\u2194\ufe0f", widthText)
 
+}
+
+// fgStyle returns a lipgloss style that renders text in the given ANSI 256
+// foreground color.
+func fgStyle(c uint8) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(strconv.Itoa(int(c))))
 }
 
 // powerlineSepPreview renders two small colored blocks joined by the given
@@ -220,9 +227,9 @@ func (m model) styleSummary() string {
 	if m.iconTheme == pet.IconThemeText {
 		icons = "text"
 	}
-	s := "Nerd Font · " + icons
+	s := "Nerd Font \u00b7 " + icons
 	if m.powerline {
-		s += " · Powerline " + pet.PowerlineSepLabel(m.powerlineSep)
+		s += " \u00b7 Powerline " + pet.PowerlineSepLabel(m.powerlineSep)
 	}
 	return s
 }
@@ -248,10 +255,10 @@ func (m model) viewStyle(b *strings.Builder) {
 	if m.firstRun {
 		header(b, "\U0001F3A8", "Welcome to ccpetline")
 		nav(b, "let's set up how your status line looks")
-		nav(b, "↑↓ move · ←→ change · enter done")
+		nav(b, "\u2191\u2193 move \u00b7 \u2190\u2192 change \u00b7 enter done")
 	} else {
 		header(b, "\U0001F3A8", "Style")
-		nav(b, "esc back · ↑↓ move · ←→ change")
+		nav(b, "esc back \u00b7 \u2191\u2193 move \u00b7 \u2190\u2192 change")
 	}
 	b.WriteString("\n")
 
@@ -263,7 +270,7 @@ func (m model) viewStyle(b *strings.Builder) {
 	}
 
 	// Nerd Font capability row (always shown).
-	row(b, m.styleCursor == styleRowNerdFont, "✨",
+	row(b, m.styleCursor == styleRowNerdFont, "\u2728",
 		fmt.Sprintf("Nerd Font %s", valueStyle.Render(onOff(m.nerdFont))))
 	if !m.nerdFont {
 		b.WriteString(hintStyle.Render("      enables glyph icons and the Powerline look"))
@@ -282,7 +289,7 @@ func (m model) viewStyle(b *strings.Builder) {
 		fmt.Sprintf("Icons %s", valueStyle.Render(iconVal)))
 
 	// Powerline toggle row.
-	row(b, m.styleCursor == styleRowPowerline, "▓",
+	row(b, m.styleCursor == styleRowPowerline, "\u2593",
 		fmt.Sprintf("Powerline (segment backgrounds) %s", valueStyle.Render(onOff(m.powerline))))
 
 	// Separator glyph row (only while powerline is on).
@@ -290,7 +297,7 @@ func (m model) viewStyle(b *strings.Builder) {
 		sepText := fmt.Sprintf("Separator %s  %s",
 			valueStyle.Render(pet.PowerlineSepLabel(m.powerlineSep)),
 			dimStyle.Render(powerlineSepPreview(m.powerlineSep)))
-		row(b, m.styleCursor == styleRowSeparator, "➤", sepText)
+		row(b, m.styleCursor == styleRowSeparator, "\u27A4", sepText)
 	}
 }
 
@@ -304,7 +311,7 @@ func (m model) viewContextMode(b *strings.Builder) {
 		if opt.mode == m.currentCtxMode {
 			check = checkStyle.Render("\u2713")
 		}
-		text := fmt.Sprintf("%s %s \u2014 %s", check, opt.label, opt.desc)
+		text := fmt.Sprintf("%s %s - %s", check, opt.label, opt.desc)
 		row(b, i == m.ctxCursor, "\U0001F4CA", text)
 	}
 }
@@ -340,7 +347,7 @@ func (m model) viewUpdate(b *strings.Builder) {
 	}
 	b.WriteString("\n")
 	changelogURL := fmt.Sprintf("https://github.com/jansuthacheeva/ccpetline/releases/tag/%s", m.latestVersion)
-	if strings.HasPrefix(m.updateStatus, "Error:") {
+	if m.updateErr {
 		b.WriteString(fmt.Sprintf("      Changelog: %s\n", dimStyle.Render(changelogURL)))
 		b.WriteString("\n")
 		nav(b, "press any key to return")
@@ -368,7 +375,7 @@ func (m model) viewDisplayMode(b *strings.Builder) {
 		if dm == m.displayMode {
 			check = checkStyle.Render("\u2713")
 		}
-		text := fmt.Sprintf("%s %s \u2014 %s", check, pet.DisplayModeLabel(dm), descs[dm])
+		text := fmt.Sprintf("%s %s - %s", check, pet.DisplayModeLabel(dm), descs[dm])
 		row(b, i == m.displayCursor, "\U0001F4FA", text)
 	}
 }
@@ -482,7 +489,7 @@ func (m model) viewLineEdit(b *strings.Builder) {
 func (m model) viewSegmentList(b *strings.Builder) {
 	segs := m.lines[m.lineFocused]
 	if len(segs) == 0 {
-		b.WriteString(dimStyle.Render("      (empty \u2014 press 'a' to add)"))
+		b.WriteString(dimStyle.Render("      (empty - press 'a' to add)"))
 		b.WriteString("\n")
 		return
 	}
@@ -491,7 +498,7 @@ func (m model) viewSegmentList(b *strings.Builder) {
 		emoji, label := m.segmentParts(seg)
 		// Show color swatch if segment has a color.
 		if i < len(colors) && colors[i] != 0 {
-			swatch := lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("%d", colors[i]))).Render("\u2588")
+			swatch := fgStyle(colors[i]).Render("\u2588")
 			label = swatch + " " + label
 		}
 		row(b, i == m.segCursor, emoji, label)
@@ -503,11 +510,8 @@ func (m model) viewSegmentList(b *strings.Builder) {
 // emoji fallback. Keeps the config's per-token icons consistent with the
 // rendered status line.
 func (m model) tokenIcon(token string) string {
-	if g := pet.TokenIcon(m.iconTheme, token); g != "" {
-		return g
-	}
-	if e := tokenEmoji[token]; e != "" {
-		return e
+	if icon := pet.TokenIcon(m.iconTheme, token); icon != "" {
+		return icon
 	}
 	return " "
 }
@@ -577,7 +581,7 @@ func (m model) renderColoredPreview(segs []pet.Segment, colors []uint8, sample *
 		if color == 0 {
 			return text
 		}
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("%d", color))).Render(text)
+		return fgStyle(color).Render(text)
 	})
 }
 
@@ -598,7 +602,7 @@ func (m model) viewColorPicker(b *strings.Builder) {
 		if c == 0 {
 			swatch = "--"
 		} else {
-			swatch = lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("%d", c))).Render(swatch)
+			swatch = fgStyle(c).Render(swatch)
 		}
 		if i == m.colorCursor {
 			b.WriteString(cursorStyle.Render("[") + swatch + cursorStyle.Render("]"))
@@ -630,7 +634,7 @@ func (m model) viewColorPicker(b *strings.Builder) {
 		if selected == 0 {
 			b.WriteString(fmt.Sprintf("      %s %s\n", dimStyle.Render("preview:"), text))
 		} else {
-			styled := lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("%d", selected))).Render(text)
+			styled := fgStyle(selected).Render(text)
 			b.WriteString(fmt.Sprintf("      %s %s\n", dimStyle.Render("preview:"), styled))
 		}
 	}

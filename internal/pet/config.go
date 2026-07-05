@@ -101,6 +101,7 @@ func defaultConfig() *Config {
 		IconTheme:    IconThemeText,
 		Separator:    DefaultSeparator,
 		Lines:        DefaultLines,
+		LineColors:   DefaultLineColors(DefaultLines),
 		BarStyle:     BarThin,
 		BarShowPet:   barShowPetDefault(),
 		BarWidth:     50,
@@ -150,6 +151,9 @@ func LoadConfig() *Config {
 		c.BarWidth = 50
 	}
 	migrateConfig(&c)
+	if len(c.LineColors) == 0 {
+		c.LineColors = DefaultLineColors(c.Lines)
+	}
 	return &c
 }
 

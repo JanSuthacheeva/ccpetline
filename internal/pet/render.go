@@ -97,9 +97,7 @@ var barChars = map[BarStyle][2]string{
 // renderBarLine renders a plain progress bar filled to pct with the suffix
 // appended, so that bar plus suffix occupy the given total width.
 func renderBarLine(pct float64, suffix string, style BarStyle, width int) string {
-	if width < 20 {
-		width = 50
-	}
+	width = clampBarWidth(width)
 
 	chars, ok := barChars[style]
 	if !ok {
@@ -124,10 +122,7 @@ func renderBarLine(pct float64, suffix string, style BarStyle, width int) string
 
 // FormatSeparator returns a separator line with the pet emoji positioned by context %.
 func FormatSeparator(s *State) string {
-	width := s.BarWidth
-	if width < 20 {
-		width = 50
-	}
+	width := clampBarWidth(s.BarWidth)
 
 	chars, ok := barChars[s.BarStyle]
 	if !ok {

@@ -329,7 +329,17 @@ func LoadState(path string) *State {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return NewState()
 	}
+	normalizeState(&s)
 	return &s
+}
+
+// normalizeState applies the same validation to a loaded state that
+// LoadConfig applies to configs, so a hand-edited or corrupted state file
+// cannot render outside sane bounds.
+func normalizeState(s *State) {
+	s.Species = ParseSpecies(string(s.Species))
+	s.ContextMode = ParseContextMode(string(s.ContextMode))
+	s.BarWidth = clampBarWidth(s.BarWidth)
 }
 
 // SaveState writes pet state to a JSON file atomically. The write goes

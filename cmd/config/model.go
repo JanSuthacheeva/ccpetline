@@ -296,24 +296,14 @@ func initialModel() model {
 		}
 	}
 
-	barShowPet := true
-	if cfg.BarShowPet != nil {
-		barShowPet = *cfg.BarShowPet
-	}
-	barStyle := cfg.BarStyle
-	if barStyle == "" {
-		barStyle = pet.BarClassic
-	}
+	// LoadConfig normalizes BarShowPet, BarStyle, and BarWidth; trust it.
+	barShowPet := cfg.BarShowPet == nil || *cfg.BarShowPet
 	barStyleCursor := 0
 	for i, s := range pet.AllBarStyles {
-		if s == barStyle {
+		if s == cfg.BarStyle {
 			barStyleCursor = i
 			break
 		}
-	}
-	barWidth := cfg.BarWidth
-	if barWidth < 20 || barWidth > 80 {
-		barWidth = 50
 	}
 
 	// First run when no config file exists yet: open the Style wizard so the
@@ -345,9 +335,9 @@ func initialModel() model {
 		displayMode:    cfg.DisplayMode,
 		displayCursor:  displayCursor,
 		wrapCommand:    cfg.WrapCommand,
-		barStyle:       barStyle,
+		barStyle:       cfg.BarStyle,
 		barShowPet:     barShowPet,
-		barWidth:       barWidth,
+		barWidth:       cfg.BarWidth,
 		powerline:      cfg.Powerline,
 		powerlineSep:   cfg.PowerlineSep,
 		barStyleCursor: barStyleCursor,

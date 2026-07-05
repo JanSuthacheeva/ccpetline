@@ -91,6 +91,23 @@ func ConfigPath() string {
 	return filepath.Join(home, ".ccpetline", "config.json")
 }
 
+// Bar width bounds. Out-of-range values reset to DefaultBarWidth on load.
+const (
+	MinBarWidth     = 20
+	MaxBarWidth     = 80
+	DefaultBarWidth = 50
+)
+
+// clampBarWidth normalizes a bar width, resetting out-of-range values to the
+// default. LoadConfig and LoadState both apply it, so render code can trust
+// the value.
+func clampBarWidth(w int) int {
+	if w < MinBarWidth || w > MaxBarWidth {
+		return DefaultBarWidth
+	}
+	return w
+}
+
 func barShowPetDefault() *bool {
 	v := true
 	return &v
@@ -106,7 +123,7 @@ func defaultConfig() *Config {
 		LineColors:   DefaultLineColors(DefaultLines),
 		BarStyle:     BarThin,
 		BarShowPet:   barShowPetDefault(),
-		BarWidth:     50,
+		BarWidth:     DefaultBarWidth,
 		PowerlineSep: SepArrow,
 	}
 }
@@ -166,9 +183,7 @@ func LoadConfig() *Config {
 	default:
 		c.PowerlineSep = SepArrow
 	}
-	if c.BarWidth < 20 || c.BarWidth > 80 {
-		c.BarWidth = 50
-	}
+	c.BarWidth = clampBarWidth(c.BarWidth)
 	migrateConfig(&c)
 	if len(c.LineColors) == 0 {
 		c.LineColors = DefaultLineColors(c.Lines)

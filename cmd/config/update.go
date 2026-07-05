@@ -728,23 +728,13 @@ func (m model) updateBarStyle(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.barShowPet = !m.barShowPet
 			m.save()
 		}
-	case "left", "h":
-		if m.barStyleCursor == barRowWidth && m.barWidth > 20 {
+	case "left", "h", "-":
+		if m.barStyleCursor == barRowWidth && m.barWidth > pet.MinBarWidth {
 			m.barWidth--
 			m.save()
 		}
-	case "right", "l":
-		if m.barStyleCursor == barRowWidth && m.barWidth < 80 {
-			m.barWidth++
-			m.save()
-		}
-	case "-":
-		if m.barStyleCursor == barRowWidth && m.barWidth > 20 {
-			m.barWidth--
-			m.save()
-		}
-	case "+", "=":
-		if m.barStyleCursor == barRowWidth && m.barWidth < 80 {
+	case "right", "l", "+", "=":
+		if m.barStyleCursor == barRowWidth && m.barWidth < pet.MaxBarWidth {
 			m.barWidth++
 			m.save()
 		}

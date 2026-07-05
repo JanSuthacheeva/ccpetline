@@ -478,8 +478,10 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "f":
 		if len(segs) > 0 {
-			// Find current color index in palette.
+			// Find current color index in palette; a hex color lands on the
+			// custom row instead.
 			m.colorCursor = 0
+			m.colorHexEdit = false
 			colors := m.lineColors[m.lineFocused]
 			if m.segCursor < len(colors) {
 				cur := colors[m.segCursor]
@@ -488,6 +490,9 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 						m.colorCursor = i
 						break
 					}
+				}
+				if cur.IsHex() {
+					m.colorCursor = customColorIdx
 				}
 			}
 			m.section = sectionColorPicker
@@ -511,7 +516,7 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Remove color at index too.
 			colors := m.lineColors[m.lineFocused]
 			if m.segCursor < len(colors) {
-				newColors := make([]uint8, 0, len(colors)-1)
+				newColors := make([]pet.Color, 0, len(colors)-1)
 				newColors = append(newColors, colors[:m.segCursor]...)
 				newColors = append(newColors, colors[m.segCursor+1:]...)
 				m.lineColors[m.lineFocused] = newColors
@@ -585,10 +590,10 @@ func (m model) applySegment(seg pet.Segment) model {
 		newSegs = append(newSegs, seg)
 		newSegs = append(newSegs, segs[m.segCursor:]...)
 		m.lines[m.lineFocused] = newSegs
-		// Insert 0 color at index.
-		newColors := make([]uint8, 0, len(colors)+1)
+		// Insert an uncolored slot at index.
+		newColors := make([]pet.Color, 0, len(colors)+1)
 		newColors = append(newColors, colors[:min(m.segCursor, len(colors))]...)
-		newColors = append(newColors, 0)
+		newColors = append(newColors, pet.ColorNone)
 		if m.segCursor < len(colors) {
 			newColors = append(newColors, colors[m.segCursor:]...)
 		}
@@ -596,8 +601,8 @@ func (m model) applySegment(seg pet.Segment) model {
 	} else {
 		m.lines[m.lineFocused] = append(segs, seg)
 		m.segCursor = len(m.lines[m.lineFocused]) - 1
-		// Append 0 color.
-		m.lineColors[m.lineFocused] = append(colors, 0)
+		// Append an uncolored slot.
+		m.lineColors[m.lineFocused] = append(colors, pet.ColorNone)
 	}
 	return m
 }
@@ -626,40 +631,93 @@ func (m model) updateTextEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) updateColorPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.colorHexEdit {
+		return m.updateColorHexEdit(msg)
+	}
 	switch msg.String() {
 	case "esc":
 		m.section = sectionLineEdit
 		m.mode = modeList
+	case "#":
+		m.colorCursor = customColorIdx
+		m = m.startHexEdit()
 	case "up", "k":
-		if m.colorCursor >= colorsPerRow {
+		if m.colorCursor == customColorIdx {
+			m.colorCursor = len(colorPalette) - 1
+		} else if m.colorCursor >= colorsPerRow {
 			m.colorCursor -= colorsPerRow
 		}
 	case "down", "j":
 		if m.colorCursor+colorsPerRow < len(colorPalette) {
 			m.colorCursor += colorsPerRow
+		} else if m.colorCursor < customColorIdx {
+			m.colorCursor = customColorIdx
 		}
 	case "left", "h":
 		if m.colorCursor > 0 {
 			m.colorCursor--
 		}
 	case "right", "l":
-		if m.colorCursor < len(colorPalette)-1 {
+		if m.colorCursor < customColorIdx {
 			m.colorCursor++
 		}
 	case "enter":
-		color := colorPalette[m.colorCursor]
-		// Ensure lineColors slice is large enough.
-		colors := m.lineColors[m.lineFocused]
-		for len(colors) <= m.segCursor {
-			colors = append(colors, 0)
+		if m.colorCursor == customColorIdx {
+			m = m.startHexEdit()
+			break
 		}
-		colors[m.segCursor] = color
-		m.lineColors[m.lineFocused] = colors
-		m = m.save()
+		m = m.setSegmentColor(colorPalette[m.colorCursor])
 		m.section = sectionLineEdit
 		m.mode = modeList
 	}
 	return m, nil
+}
+
+// updateColorHexEdit handles keys while the custom hex input is open. Enter
+// applies only once the buffer parses as a color, so a typo cannot be saved;
+// the live preview shows when the code is complete.
+func (m model) updateColorHexEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.colorHexEdit = false
+	case "enter":
+		c, err := pet.ParseColor(string(m.editBuf))
+		if err != nil || c.IsNone() {
+			break
+		}
+		m = m.setSegmentColor(c)
+		m.colorHexEdit = false
+		m.section = sectionLineEdit
+		m.mode = modeList
+	default:
+		m.editBuf, m.editCursor = applyEditKey(m.editBuf, m.editCursor, msg, 7)
+	}
+	return m, nil
+}
+
+// startHexEdit opens the custom hex input, prefilled with the focused
+// segment's current color when it already is a hex code.
+func (m model) startHexEdit() model {
+	m.colorHexEdit = true
+	m.editBuf = []rune("#")
+	colors := m.lineColors[m.lineFocused]
+	if m.segCursor < len(colors) && colors[m.segCursor].IsHex() {
+		m.editBuf = []rune(string(colors[m.segCursor]))
+	}
+	m.editCursor = len(m.editBuf)
+	return m
+}
+
+// setSegmentColor assigns a color to the focused segment, growing the color
+// slice to match the segment position when needed, and persists.
+func (m model) setSegmentColor(c pet.Color) model {
+	colors := m.lineColors[m.lineFocused]
+	for len(colors) <= m.segCursor {
+		colors = append(colors, pet.ColorNone)
+	}
+	colors[m.segCursor] = c
+	m.lineColors[m.lineFocused] = colors
+	return m.save()
 }
 
 // barStyleRows: 0..len(AllBarStyles)-1 = styles, then pet toggle and width.
@@ -723,8 +781,8 @@ func (m model) save() model {
 	if len(lines) == 0 {
 		lines = pet.DefaultLines
 	}
-	// Collect line colors, omitting trailing all-zero slices.
-	var lc [][]uint8
+	// Collect line colors, omitting trailing all-uncolored slices.
+	var lc [][]pet.Color
 	for i := 0; i < maxLines; i++ {
 		if len(m.lines[i]) > 0 {
 			lc = append(lc, m.lineColors[i])
@@ -733,14 +791,14 @@ func (m model) save() model {
 	// Trim trailing empty color slices.
 	for len(lc) > 0 {
 		last := lc[len(lc)-1]
-		allZero := true
+		allNone := true
 		for _, c := range last {
-			if c != 0 {
-				allZero = false
+			if !c.IsNone() {
+				allNone = false
 				break
 			}
 		}
-		if allZero || len(last) == 0 {
+		if allNone || len(last) == 0 {
 			lc = lc[:len(lc)-1]
 		} else {
 			break

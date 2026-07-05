@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -114,54 +113,61 @@ func (m model) menuItems() []menuItem {
 }
 
 // colorPalette is the curated set of ANSI 256 colors available in the picker.
-var colorPalette = []uint8{
-	0, 196, 208, 220, 226,
-	118, 49, 51, 45, 39,
-	63, 99, 141, 177,
-	212, 255, 245,
+// The picker exposes one extra position after the palette (customColorIdx)
+// that opens a free-form hex code input.
+var colorPalette = []pet.Color{
+	"", "196", "208", "220", "226",
+	"118", "49", "51", "45", "39",
+	"63", "99", "141", "177",
+	"212", "255", "245",
 }
+
+// customColorIdx is the picker cursor position of the "custom hex" entry,
+// one past the last palette swatch.
+var customColorIdx = len(colorPalette)
 
 const colorsPerRow = 6
 
-// colorLabel returns a human-readable name for a palette color.
-func colorLabel(c uint8) string {
+// colorLabel returns a human-readable name for a palette color; custom
+// colors are labeled by their own value.
+func colorLabel(c pet.Color) string {
 	switch c {
-	case 0:
+	case "":
 		return "none"
-	case 196:
+	case "196":
 		return "red"
-	case 208:
+	case "208":
 		return "orange"
-	case 220:
+	case "220":
 		return "gold"
-	case 226:
+	case "226":
 		return "yellow"
-	case 118:
+	case "118":
 		return "green"
-	case 49:
+	case "49":
 		return "emerald"
-	case 51:
+	case "51":
 		return "cyan"
-	case 45:
+	case "45":
 		return "sky"
-	case 39:
+	case "39":
 		return "blue"
-	case 63:
+	case "63":
 		return "indigo"
-	case 99:
+	case "99":
 		return "purple"
-	case 141:
+	case "141":
 		return "lavender"
-	case 177:
+	case "177":
 		return "orchid"
-	case 212:
+	case "212":
 		return "pink"
-	case 255:
+	case "255":
 		return "white"
-	case 245:
+	case "245":
 		return "gray"
 	default:
-		return strconv.Itoa(int(c))
+		return string(c)
 	}
 }
 
@@ -189,12 +195,13 @@ type model struct {
 	firstRun       bool
 	separator      string
 
-	lines       [maxLines][]pet.Segment
-	lineColors  [maxLines][]uint8
-	lineFocused int
-	segCursor   int
-	colorCursor int
-	mode        editMode
+	lines        [maxLines][]pet.Segment
+	lineColors   [maxLines][]pet.Color
+	lineFocused  int
+	segCursor    int
+	colorCursor  int
+	colorHexEdit bool
+	mode         editMode
 
 	pickerItems   []string
 	pickerCursor  int
@@ -258,7 +265,7 @@ func initialModel() model {
 		}
 	}
 	var lines [maxLines][]pet.Segment
-	var lineColors [maxLines][]uint8
+	var lineColors [maxLines][]pet.Color
 	for i, tmpl := range cfg.Lines {
 		if i >= maxLines {
 			break
@@ -269,7 +276,7 @@ func initialModel() model {
 		if i >= maxLines {
 			break
 		}
-		lineColors[i] = make([]uint8, len(colors))
+		lineColors[i] = make([]pet.Color, len(colors))
 		copy(lineColors[i], colors)
 	}
 

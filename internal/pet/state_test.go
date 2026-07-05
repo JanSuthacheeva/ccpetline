@@ -130,7 +130,7 @@ func TestApplyConfig(t *testing.T) {
 		ContextMode:  ContextModeCtxU,
 		IconTheme:    IconThemeNerd,
 		Lines:        []string{"{model}"},
-		LineColors:   [][]uint8{{42}},
+		LineColors:   [][]Color{{"42"}},
 		DisplayMode:  ModeAppend,
 		WrapCommand:  "echo hi",
 		BarStyle:     BarDot,

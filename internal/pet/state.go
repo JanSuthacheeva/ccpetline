@@ -204,7 +204,7 @@ type State struct {
 	ContextMode    ContextMode       `json:"context_mode"`
 	IconTheme      IconTheme         `json:"icon_theme,omitempty"`
 	Lines          []string          `json:"lines,omitempty"`
-	LineColors     [][]uint8         `json:"line_colors,omitempty"`
+	LineColors     [][]Color         `json:"line_colors,omitempty"`
 	DisplayMode    DisplayMode       `json:"display_mode,omitempty"`
 	WrapCommand    string            `json:"wrap_command,omitempty"`
 	BarStyle       BarStyle          `json:"bar_style,omitempty"`

@@ -44,10 +44,11 @@ func (m model) viewBarStyle(b *strings.Builder) {
 
 }
 
-// fgStyle returns a lipgloss style that renders text in the given ANSI 256
-// foreground color.
-func fgStyle(c uint8) lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(strconv.Itoa(int(c))))
+// fgStyle returns a lipgloss style that renders text in the given foreground
+// color. pet.Color's string form ("39" or "#ff8800") is exactly what
+// lipgloss.Color expects.
+func fgStyle(c pet.Color) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(string(c)))
 }
 
 // powerlineSepPreview renders two small colored blocks joined by the given
@@ -497,7 +498,7 @@ func (m model) viewSegmentList(b *strings.Builder) {
 	for i, seg := range segs {
 		emoji, label := m.segmentParts(seg)
 		// Show color swatch if segment has a color.
-		if i < len(colors) && colors[i] != 0 {
+		if i < len(colors) && !colors[i].IsNone() {
 			swatch := fgStyle(colors[i]).Render("\u2588")
 			label = swatch + " " + label
 		}
@@ -563,7 +564,7 @@ func (m model) viewTextEdit(b *strings.Builder) {
 // preview. Tokens resolve against sample data and commands show a [cmd]
 // placeholder instead of executing; the assembly itself is shared with the
 // real statusline renderer via pet.AssembleColoredLine.
-func (m model) renderColoredPreview(segs []pet.Segment, colors []uint8, sample *pet.SegmentData) string {
+func (m model) renderColoredPreview(segs []pet.Segment, colors []pet.Color, sample *pet.SegmentData) string {
 	items := pet.ResolveSegments(segs, colors, func(seg pet.Segment) string {
 		switch seg.Kind {
 		case pet.KindToken:
@@ -577,17 +578,44 @@ func (m model) renderColoredPreview(segs []pet.Segment, colors []uint8, sample *
 			return "[cmd]"
 		}
 	})
-	return pet.AssembleColoredLine(items, func(text string, color uint8) string {
-		if color == 0 {
+	return pet.AssembleColoredLine(items, func(text string, color pet.Color) string {
+		if color.IsNone() {
 			return text
 		}
 		return fgStyle(color).Render(text)
 	})
 }
 
+// pickerColor returns the color the picker cursor currently indicates: a
+// palette entry, the hex input's value while typing (ColorNone until the
+// code is complete), or the segment's saved hex color when the custom row is
+// merely focused. editBuf is shared across the TUI's text editors, so it is
+// only consulted while the hex input is actually open.
+func (m model) pickerColor() pet.Color {
+	if m.colorCursor < len(colorPalette) {
+		return colorPalette[m.colorCursor]
+	}
+	if m.colorHexEdit {
+		c, err := pet.ParseColor(string(m.editBuf))
+		if err != nil {
+			return pet.ColorNone
+		}
+		return c
+	}
+	colors := m.lineColors[m.lineFocused]
+	if m.segCursor < len(colors) && colors[m.segCursor].IsHex() {
+		return colors[m.segCursor]
+	}
+	return pet.ColorNone
+}
+
 func (m model) viewColorPicker(b *strings.Builder) {
 	header(b, "\U0001F3A8", "Foreground Color")
-	nav(b, "esc back \u00b7 arrows navigate \u00b7 enter select")
+	if m.colorHexEdit {
+		nav(b, "esc back \u00b7 enter apply \u00b7 type #rrggbb")
+	} else {
+		nav(b, "esc back \u00b7 arrows navigate \u00b7 enter select \u00b7 # custom hex")
+	}
 	b.WriteString("\n")
 
 	// Render grid of color swatches.
@@ -599,7 +627,7 @@ func (m model) viewColorPicker(b *strings.Builder) {
 			b.WriteString("      ")
 		}
 		swatch := "\u2588\u2588"
-		if c == 0 {
+		if c.IsNone() {
 			swatch = "--"
 		} else {
 			swatch = fgStyle(c).Render(swatch)
@@ -612,9 +640,28 @@ func (m model) viewColorPicker(b *strings.Builder) {
 	}
 	b.WriteString("\n\n")
 
+	// Custom hex entry row below the grid.
+	if m.colorHexEdit {
+		b.WriteString(fmt.Sprintf("      %s %s%s\n",
+			dimStyle.Render("hex:"),
+			accentStyle.Render(string(m.editBuf)),
+			cursorStyle.Render("\u2588")))
+	} else {
+		text := "custom hex\u2026"
+		if m.colorCursor == customColorIdx {
+			b.WriteString(fmt.Sprintf("      %s %s\n", cursorStyle.Render("\u25b8"), accentStyle.Render(text)))
+		} else {
+			b.WriteString(fmt.Sprintf("        %s\n", dimStyle.Render(text)))
+		}
+	}
+	b.WriteString("\n")
+
 	// Show selected color label and preview.
-	selected := colorPalette[m.colorCursor]
+	selected := m.pickerColor()
 	label := colorLabel(selected)
+	if m.colorCursor == customColorIdx && selected.IsNone() {
+		label = "custom"
+	}
 	b.WriteString(fmt.Sprintf("      %s %s\n", dimStyle.Render("color:"), valueStyle.Render(label)))
 
 	// Preview: show the focused segment text in the selected color.
@@ -631,7 +678,7 @@ func (m model) viewColorPicker(b *strings.Builder) {
 		case pet.KindCommand:
 			text = "[cmd]"
 		}
-		if selected == 0 {
+		if selected.IsNone() {
 			b.WriteString(fmt.Sprintf("      %s %s\n", dimStyle.Render("preview:"), text))
 		} else {
 			styled := fgStyle(selected).Render(text)

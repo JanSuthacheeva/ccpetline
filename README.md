@@ -87,7 +87,14 @@ through Claude Code's status line (unlike terminal image protocols, which it doe
 Colors are configured separately, per segment, via the color picker in **Edit Lines** (press
 `f`). Out of the box the status line uses a default color scheme (blue directory, purple
 branch, gold changes, cyan model, green cost, pink joy, and so on); override any segment to
-taste.
+taste. Besides the curated palette, the picker has a **custom hex** entry (press `#` or
+select the row below the swatches) that accepts any `#rrggbb` code, rendered as 24-bit
+truecolor. In `config.json`, palette colors are stored as ANSI-256 numbers and custom colors
+as hex strings, so you can also mix both forms by hand:
+
+```json
+"line_colors": [[39, 0, "#ff8800"]]
+```
 
 ### Powerline
 

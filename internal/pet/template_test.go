@@ -55,7 +55,7 @@ func TestFormatRateLimit(t *testing.T) {
 func TestAssembleColoredLine(t *testing.T) {
 	sep := ResolvedSegment{Text: "|", Kind: KindSeparator}
 	tok := func(s string) ResolvedSegment { return ResolvedSegment{Text: s, Kind: KindToken} }
-	plain := func(text string, _ uint8) string { return text }
+	plain := func(text string, _ Color) string { return text }
 
 	tests := []struct {
 		name  string
@@ -78,9 +78,9 @@ func TestAssembleColoredLine(t *testing.T) {
 	}
 
 	// The colorize callback receives each segment's color.
-	items := []ResolvedSegment{{Text: "a", Kind: KindToken, Color: 7}}
-	got := AssembleColoredLine(items, func(text string, color uint8) string {
-		return fmt.Sprintf("<%d>%s", color, text)
+	items := []ResolvedSegment{{Text: "a", Kind: KindToken, Color: "7"}}
+	got := AssembleColoredLine(items, func(text string, color Color) string {
+		return fmt.Sprintf("<%s>%s", color, text)
 	})
 	if got != "<7>a" {
 		t.Errorf("colorize not applied: %q", got)
@@ -239,15 +239,15 @@ func TestRenderTemplateIconThemes(t *testing.T) {
 }
 
 func TestDefaultLineColors(t *testing.T) {
-	// Colors align positionally with segments; separators stay 0.
+	// Colors align positionally with segments; separators stay uncolored.
 	lines := []string{"{cwd} | {branch}", "{pet} {mood}"}
 	got := DefaultLineColors(lines)
 	// Line 0: [cwd, sep, branch]
-	if len(got[0]) != 3 || got[0][0] != DefaultTokenColors["cwd"] || got[0][1] != 0 || got[0][2] != DefaultTokenColors["branch"] {
+	if len(got[0]) != 3 || got[0][0] != DefaultTokenColors["cwd"] || !got[0][1].IsNone() || got[0][2] != DefaultTokenColors["branch"] {
 		t.Errorf("line 0 colors = %v", got[0])
 	}
-	// Line 1: [pet, mood] - pet uncolored (0), mood gray.
-	if len(got[1]) != 2 || got[1][0] != 0 || got[1][1] != DefaultTokenColors["mood"] {
+	// Line 1: [pet, mood] - pet uncolored, mood gray.
+	if len(got[1]) != 2 || !got[1][0].IsNone() || got[1][1] != DefaultTokenColors["mood"] {
 		t.Errorf("line 1 colors = %v", got[1])
 	}
 }
@@ -287,7 +287,7 @@ func TestRenderBarLineWideSuffix(t *testing.T) {
 
 func TestRenderPowerlineLine(t *testing.T) {
 	segs := TemplateToSegments("{model} | {joy}")
-	colors := []uint8{51, 0, 212} // model=cyan, sep=0, joy=pink
+	colors := []Color{"51", "", "212"} // model=cyan, sep=none, joy=pink
 	data := &SegmentData{IconTheme: IconThemeText, Model: "Opus 4", Snacks: "5"}
 	out := RenderPowerlineLine(segs, colors, data, SepArrow)
 
@@ -352,11 +352,17 @@ func TestRenderPowerlineLineSepStyles(t *testing.T) {
 }
 
 func TestContrastFg(t *testing.T) {
-	if got := contrastFg(51); got != 16 { // bright cyan -> dark text
-		t.Errorf("contrastFg(51) = %d, want 16", got)
+	if got := contrastFg("51"); got != "16" { // bright cyan -> dark text
+		t.Errorf("contrastFg(51) = %s, want 16", got)
 	}
-	if got := contrastFg(21); got != 231 { // pure blue -> light text
-		t.Errorf("contrastFg(21) = %d, want 231", got)
+	if got := contrastFg("21"); got != "231" { // pure blue -> light text
+		t.Errorf("contrastFg(21) = %s, want 231", got)
+	}
+	if got := contrastFg("#ffee88"); got != "16" { // pale yellow -> dark text
+		t.Errorf("contrastFg(#ffee88) = %s, want 16", got)
+	}
+	if got := contrastFg("#112233"); got != "231" { // near-black -> light text
+		t.Errorf("contrastFg(#112233) = %s, want 231", got)
 	}
 }
 

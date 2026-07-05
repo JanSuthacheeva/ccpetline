@@ -275,13 +275,14 @@ func formatRateLimitBar(rateLimits map[string]any, window, label string, s *Stat
 	return renderBarLine(pct, suffix, s.BarStyle, s.BarWidth)
 }
 
-// ColorSegment wraps text in ANSI 256-color escape codes.
-// color=0 means no color (returns text unchanged).
-func ColorSegment(text string, color uint8) string {
-	if color == 0 || text == "" {
+// ColorSegment wraps text in ANSI color escape codes: 256-color for palette
+// indices, 24-bit truecolor for hex codes. The zero color returns text
+// unchanged.
+func ColorSegment(text string, color Color) string {
+	if color.IsNone() || text == "" {
 		return text
 	}
-	return fmt.Sprintf("\x1b[38;5;%dm%s\x1b[0m", color, text)
+	return fmt.Sprintf("\x1b[%sm%s\x1b[0m", color.fgParams(), text)
 }
 
 // resolveToken resolves a single token name to its display string. Scalar
@@ -343,15 +344,15 @@ func execCommand(cmd string) string {
 type ResolvedSegment struct {
 	Text  string
 	Kind  SegmentKind
-	Color uint8
+	Color Color
 }
 
 // ResolveSegments pairs each segment with its color and resolves it to
 // display text using resolve.
-func ResolveSegments(segs []Segment, colors []uint8, resolve func(Segment) string) []ResolvedSegment {
+func ResolveSegments(segs []Segment, colors []Color, resolve func(Segment) string) []ResolvedSegment {
 	items := make([]ResolvedSegment, len(segs))
 	for i, seg := range segs {
-		var color uint8
+		var color Color
 		if i < len(colors) {
 			color = colors[i]
 		}
@@ -364,7 +365,7 @@ func ResolveSegments(segs []Segment, colors []uint8, resolve func(Segment) strin
 // between non-separator segments, and joins the results, coloring each segment
 // with colorize. It is the single assembly pipeline shared by the statusline
 // renderer and the config TUI preview so the two cannot drift.
-func AssembleColoredLine(items []ResolvedSegment, colorize func(text string, color uint8) string) string {
+func AssembleColoredLine(items []ResolvedSegment, colorize func(text string, color Color) string) string {
 	// Filter empty tokens and dangling separators.
 	var filtered []ResolvedSegment
 	for _, r := range items {
@@ -407,7 +408,7 @@ func AssembleColoredLine(items []ResolvedSegment, colorize func(text string, col
 
 // RenderColoredLine resolves segments, filters empties and dangling separators,
 // auto-spaces between non-separator segments, and applies per-segment colors.
-func RenderColoredLine(segs []Segment, colors []uint8, data *SegmentData) string {
+func RenderColoredLine(segs []Segment, colors []Color, data *SegmentData) string {
 	items := ResolveSegments(segs, colors, func(seg Segment) string {
 		switch seg.Kind {
 		case KindToken:
@@ -456,7 +457,7 @@ func RenderLines(s *State, in *ClaudeInput) []string {
 
 	var lines []string
 	for i, tmpl := range s.Lines {
-		var colors []uint8
+		var colors []Color
 		if i < len(s.LineColors) {
 			colors = s.LineColors[i]
 		}

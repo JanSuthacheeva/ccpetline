@@ -111,32 +111,32 @@ func decorateToken(theme IconTheme, key, val string) string {
 // DefaultTokenColors maps a token key to an ANSI 256-color for the default
 // color scheme. Tokens absent from the map (e.g. pet) stay uncolored so their
 // natural emoji color shows through.
-var DefaultTokenColors = map[string]uint8{
-	"cwd":     39,  // blue
-	"dir":     39,  // blue
-	"branch":  99,  // purple
-	"changes": 214, // gold
-	"model":   51,  // cyan
-	"ctx":     208, // amber
-	"ctx_bar": 39,  // blue
-	"cost":    118, // green
-	"joy":     212, // pink
-	"mood":    245, // gray
-	"5h":      208, // amber
-	"7d":      208, // amber
-	"5h_bar":  208, // amber
-	"7d_bar":  208, // amber
+var DefaultTokenColors = map[string]Color{
+	"cwd":     "39",  // blue
+	"dir":     "39",  // blue
+	"branch":  "99",  // purple
+	"changes": "214", // gold
+	"model":   "51",  // cyan
+	"ctx":     "208", // amber
+	"ctx_bar": "39",  // blue
+	"cost":    "118", // green
+	"joy":     "212", // pink
+	"mood":    "245", // gray
+	"5h":      "208", // amber
+	"7d":      "208", // amber
+	"5h_bar":  "208", // amber
+	"7d_bar":  "208", // amber
 }
 
 // DefaultLineColors builds per-segment color arrays for the given line
-// templates using DefaultTokenColors. Separators and commands stay uncolored
-// (0). The result aligns positionally with TemplateToSegments, matching how the
+// templates using DefaultTokenColors. Separators and commands stay uncolored.
+// The result aligns positionally with TemplateToSegments, matching how the
 // TUI stores per-segment colors.
-func DefaultLineColors(lines []string) [][]uint8 {
-	out := make([][]uint8, len(lines))
+func DefaultLineColors(lines []string) [][]Color {
+	out := make([][]Color, len(lines))
 	for i, tmpl := range lines {
 		segs := TemplateToSegments(tmpl)
-		colors := make([]uint8, len(segs))
+		colors := make([]Color, len(segs))
 		for j, seg := range segs {
 			if seg.Kind == KindToken {
 				colors[j] = DefaultTokenColors[seg.Value]

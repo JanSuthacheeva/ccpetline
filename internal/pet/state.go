@@ -40,8 +40,8 @@ const (
 	ContextModeCtxU ContextMode = "ctx_u"
 )
 
-var AllContextModes = []ContextMode{ContextModeCtx, ContextModeCtxU}
-
+// ParseContextMode normalizes a raw string to a known context mode,
+// defaulting to ctx.
 func ParseContextMode(s string) ContextMode {
 	if ContextMode(s) == ContextModeCtxU {
 		return ContextModeCtxU
@@ -49,12 +49,14 @@ func ParseContextMode(s string) ContextMode {
 	return ContextModeCtx
 }
 
+// ParseSpecies normalizes a raw string to a known species, defaulting to the
+// same cat that defaultConfig uses.
 func ParseSpecies(s string) Species {
 	switch Species(s) {
 	case SpeciesGoose, SpeciesCat, SpeciesOcean, SpeciesDragon, SpeciesDino:
 		return Species(s)
 	default:
-		return SpeciesGoose
+		return SpeciesCat
 	}
 }
 

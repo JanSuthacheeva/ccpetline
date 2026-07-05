@@ -85,16 +85,6 @@ func SegmentsToTemplate(segs []Segment, separator string) string {
 	return b.String()
 }
 
-// TokensToTemplate joins token names into a template string like "{a} | {b}".
-// Kept for backward compatibility.
-func TokensToTemplate(tokens []string) string {
-	parts := make([]string, len(tokens))
-	for i, t := range tokens {
-		parts[i] = "{" + t + "}"
-	}
-	return strings.Join(parts, " | ")
-}
-
 var (
 	tokenRe = regexp.MustCompile(`\{(\w+)\}`)
 	cmdRe   = regexp.MustCompile(`\[cmd:\s*(.+?)\]`)
@@ -132,17 +122,6 @@ func TemplateToSegments(tmpl string) []Segment {
 		}
 	}
 	return segs
-}
-
-// TemplateToTokens parses a template string back into token names.
-// Kept for backward compatibility.
-func TemplateToTokens(tmpl string) []string {
-	matches := tokenRe.FindAllStringSubmatch(tmpl, -1)
-	var tokens []string
-	for _, m := range matches {
-		tokens = append(tokens, m[1])
-	}
-	return tokens
 }
 
 // SegmentData holds all resolved token values for template rendering. Scalar

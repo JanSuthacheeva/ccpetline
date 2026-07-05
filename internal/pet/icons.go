@@ -12,25 +12,12 @@ const (
 	IconThemeNerd IconTheme = "nerd"
 )
 
-// AllIconThemes is the ordered list of selectable icon themes.
-var AllIconThemes = []IconTheme{IconThemeText, IconThemeNerd}
-
 // ParseIconTheme normalizes a raw string to a known theme, defaulting to text.
 func ParseIconTheme(s string) IconTheme {
 	if IconTheme(s) == IconThemeNerd {
 		return IconThemeNerd
 	}
 	return IconThemeText
-}
-
-// IconThemeLabel returns a human-readable name for an icon theme.
-func IconThemeLabel(t IconTheme) string {
-	switch t {
-	case IconThemeNerd:
-		return "Nerd Font"
-	default:
-		return "Text"
-	}
 }
 
 // nerdTokenGlyphs maps a token key to its Nerd Font prefix glyph. All are drawn

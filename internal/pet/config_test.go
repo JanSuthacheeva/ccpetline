@@ -81,11 +81,26 @@ func TestLoadConfigNormalization(t *testing.T) {
 			},
 		},
 		{
-			name: "corrupt json falls back to defaults",
+			name: "corrupt json falls back to defaults and backs up the file",
 			raw:  `{not json`,
 			check: func(t *testing.T, c *Config) {
 				if c.Species != SpeciesCat || c.BarWidth != 50 {
 					t.Errorf("got %+v", c)
+				}
+				if _, err := os.Stat(ConfigPath() + ".bad"); err != nil {
+					t.Errorf("malformed config not preserved as .bad: %v", err)
+				}
+				if _, err := os.Stat(ConfigPath()); !os.IsNotExist(err) {
+					t.Errorf("malformed config still in place: %v", err)
+				}
+			},
+		},
+		{
+			name: "invalid species and context mode fall back to defaults",
+			raw:  `{"species": "doge", "context_mode": "wat"}`,
+			check: func(t *testing.T, c *Config) {
+				if c.Species != SpeciesCat || c.ContextMode != ContextModeCtx {
+					t.Errorf("got %v %v", c.Species, c.ContextMode)
 				}
 			},
 		},

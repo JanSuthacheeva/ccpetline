@@ -139,17 +139,14 @@ func LoadConfig() *Config {
 	}
 	var c Config
 	if err := json.Unmarshal(data, &c); err != nil {
+		// Preserve the malformed file for manual recovery: the next save
+		// would otherwise permanently overwrite it with defaults.
+		_ = os.Rename(path, path+".bad")
 		return defaultConfig()
 	}
-	if c.Species == "" {
-		c.Species = SpeciesCat
-	}
-	if c.ContextMode == "" {
-		c.ContextMode = ContextModeCtx
-	}
-	if c.IconTheme != IconThemeNerd {
-		c.IconTheme = IconThemeText
-	}
+	c.Species = ParseSpecies(string(c.Species))
+	c.ContextMode = ParseContextMode(string(c.ContextMode))
+	c.IconTheme = ParseIconTheme(string(c.IconTheme))
 	// For configs written before nerd_font existed, infer the capability from
 	// usage: any config already using glyphs or the powerline look must have had
 	// a Nerd Font. An explicitly present nerd_font is authoritative, so only

@@ -279,6 +279,9 @@ func TestRenderPowerlineLineSepStyles(t *testing.T) {
 	data := &SegmentData{IconTheme: IconThemeText, Model: "Opus 4", Snacks: "5"}
 
 	for _, style := range AllPowerlineSepStyles {
+		if style == SepNone {
+			continue
+		}
 		glyph := PowerlineSepGlyph(style)
 		out := RenderPowerlineLine(segs, nil, data, style)
 		if strings.Count(out, glyph) != 2 {
@@ -287,12 +290,23 @@ func TestRenderPowerlineLineSepStyles(t *testing.T) {
 		}
 	}
 
+	// None: blocks sit flush with no glyph between them, one trailing reset.
+	out := RenderPowerlineLine(segs, nil, data, SepNone)
+	for _, style := range AllPowerlineSepStyles {
+		if g := PowerlineSepGlyph(style); g != "" && strings.Contains(out, g) {
+			t.Errorf("style none should contain no separator glyph, got %q in %q", g, out)
+		}
+	}
+	if !strings.HasSuffix(out, "\x1b[0m") {
+		t.Errorf("style none should end with a reset: %q", out)
+	}
+
 	// Unknown or empty styles (old configs) fall back to the arrow.
 	arrow := PowerlineSepGlyph(SepArrow)
 	if PowerlineSepGlyph("") != arrow {
 		t.Error("empty style should fall back to arrow glyph")
 	}
-	out := RenderPowerlineLine(segs, nil, data, "")
+	out = RenderPowerlineLine(segs, nil, data, "")
 	if strings.Count(out, arrow) != 2 {
 		t.Errorf("empty style: want 2 arrow separators in %q", out)
 	}

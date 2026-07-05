@@ -17,10 +17,11 @@ const (
 	SepBackslant PowerlineSepStyle = "backslant" // lower left triangle
 	SepFlame     PowerlineSepStyle = "flame"     // flame thick
 	SepPixels    PowerlineSepStyle = "pixels"    // pixelated squares big
+	SepNone      PowerlineSepStyle = "none"      // no glyph, straight edge
 )
 
 var AllPowerlineSepStyles = []PowerlineSepStyle{
-	SepArrow, SepRound, SepSlant, SepBackslant, SepFlame, SepPixels,
+	SepArrow, SepRound, SepSlant, SepBackslant, SepFlame, SepPixels, SepNone,
 }
 
 var powerlineSepGlyphs = map[PowerlineSepStyle]string{
@@ -30,6 +31,7 @@ var powerlineSepGlyphs = map[PowerlineSepStyle]string{
 	SepBackslant: "",
 	SepFlame:     "",
 	SepPixels:    "",
+	SepNone:      "",
 }
 
 // PowerlineSepGlyph returns the glyph for a separator style, falling back to
@@ -53,6 +55,8 @@ func PowerlineSepLabel(s PowerlineSepStyle) string {
 		return "Flame"
 	case SepPixels:
 		return "Pixels"
+	case SepNone:
+		return "None"
 	default:
 		return "Arrow"
 	}
@@ -106,11 +110,19 @@ func RenderPowerlineLine(segs []Segment, colors []uint8, data *SegmentData, sepS
 		fg := contrastFg(blk.bg)
 		// Filled block: " text " on the segment background.
 		fmt.Fprintf(&b, "\x1b[38;5;%d;48;5;%dm %s ", fg, blk.bg, blk.text)
-		if i+1 < len(blocks) {
+		switch {
+		case sep == "":
+			// No separator: blocks sit flush against each other; the last one
+			// just resets. Each block sets its own colors, so no transition
+			// escapes are needed.
+			if i+1 == len(blocks) {
+				b.WriteString("\x1b[0m")
+			}
+		case i+1 < len(blocks):
 			// Transition glyph: its foreground is this block's background and
 			// its background is the next block's, so the colors flow together.
 			fmt.Fprintf(&b, "\x1b[38;5;%d;48;5;%dm%s", blk.bg, blocks[i+1].bg, sep)
-		} else {
+		default:
 			// Trailing glyph fades the last block into the default background.
 			fmt.Fprintf(&b, "\x1b[0m\x1b[38;5;%dm%s\x1b[0m", blk.bg, sep)
 		}

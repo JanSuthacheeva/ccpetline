@@ -79,8 +79,8 @@ filled block joined by `` arrows. In this mode the per-segment colors become seg
 Font ships the separator glyphs).
 
 The separator glyph is configurable via the **Separator** row that appears below the
-Powerline toggle: Arrow ``, Round ``, Slant ``, Backslant ``, Flame `` or
-Pixels ``.
+Powerline toggle: Arrow ``, Round ``, Slant ``, Backslant ``, Flame ``,
+Pixels `` or None for a straight edge with no glyph between blocks.
 
 ## Architecture
 

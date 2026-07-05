@@ -142,7 +142,7 @@ func LoadConfig() *Config {
 		c.BarShowPet = barShowPetDefault()
 	}
 	switch c.PowerlineSep {
-	case SepRound, SepSlant, SepBackslant, SepFlame, SepPixels:
+	case SepRound, SepSlant, SepBackslant, SepFlame, SepPixels, SepNone:
 	default:
 		c.PowerlineSep = SepArrow
 	}

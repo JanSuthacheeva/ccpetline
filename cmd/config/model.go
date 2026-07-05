@@ -293,17 +293,17 @@ func initialModel() model {
 
 	// First run when no config file exists yet: open the Style wizard so the
 	// user declares terminal capabilities before seeing the full menu.
-	section := sectionMenu
+	startSection := sectionMenu
 	firstRun := false
 	if path := pet.ConfigPath(); path != "" {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			section = sectionStyle
+			startSection = sectionStyle
 			firstRun = true
 		}
 	}
 
 	return model{
-		section:        section,
+		section:        startSection,
 		firstRun:       firstRun,
 		options:        opts,
 		ctxOptions:     ctxOpts,

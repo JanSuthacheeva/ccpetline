@@ -184,23 +184,24 @@ func SizeFromContext(pct float64) Size {
 }
 
 type State struct {
-	Species        Species     `json:"species"`
-	ContextMode    ContextMode `json:"context_mode"`
-	IconTheme      IconTheme   `json:"icon_theme,omitempty"`
-	Lines          []string    `json:"lines,omitempty"`
-	LineColors     [][]uint8   `json:"line_colors,omitempty"`
-	DisplayMode    DisplayMode `json:"display_mode,omitempty"`
-	WrapCommand    string      `json:"wrap_command,omitempty"`
-	BarStyle       BarStyle    `json:"bar_style,omitempty"`
-	BarShowPet     bool        `json:"bar_show_pet"`
-	BarWidth       int         `json:"bar_width,omitempty"`
-	Powerline      bool        `json:"powerline,omitempty"`
-	Mood           Mood        `json:"mood"`
-	Size           Size        `json:"size"`
-	ContextPct     float64     `json:"context_pct"`
-	Happiness      int         `json:"happiness"`
-	LastEvent      time.Time   `json:"last_event"`
-	LastMoodChange time.Time   `json:"last_mood_change"`
+	Species        Species           `json:"species"`
+	ContextMode    ContextMode       `json:"context_mode"`
+	IconTheme      IconTheme         `json:"icon_theme,omitempty"`
+	Lines          []string          `json:"lines,omitempty"`
+	LineColors     [][]uint8         `json:"line_colors,omitempty"`
+	DisplayMode    DisplayMode       `json:"display_mode,omitempty"`
+	WrapCommand    string            `json:"wrap_command,omitempty"`
+	BarStyle       BarStyle          `json:"bar_style,omitempty"`
+	BarShowPet     bool              `json:"bar_show_pet"`
+	BarWidth       int               `json:"bar_width,omitempty"`
+	Powerline      bool              `json:"powerline,omitempty"`
+	PowerlineSep   PowerlineSepStyle `json:"powerline_sep,omitempty"`
+	Mood           Mood              `json:"mood"`
+	Size           Size              `json:"size"`
+	ContextPct     float64           `json:"context_pct"`
+	Happiness      int               `json:"happiness"`
+	LastEvent      time.Time         `json:"last_event"`
+	LastMoodChange time.Time         `json:"last_mood_change"`
 }
 
 func NewState() *State {
@@ -210,20 +211,21 @@ func NewState() *State {
 		barShowPet = *cfg.BarShowPet
 	}
 	return &State{
-		Species:     cfg.Species,
-		ContextMode: cfg.ContextMode,
-		IconTheme:   cfg.IconTheme,
-		Lines:       cfg.Lines,
-		LineColors:  cfg.LineColors,
-		DisplayMode: cfg.DisplayMode,
-		WrapCommand: cfg.WrapCommand,
-		BarStyle:    cfg.BarStyle,
-		BarShowPet:  barShowPet,
-		BarWidth:    cfg.BarWidth,
-		Powerline:   cfg.Powerline,
-		Mood:        MoodSleeping,
-		Size:        SizeTiny,
-		LastEvent:   time.Now(),
+		Species:      cfg.Species,
+		ContextMode:  cfg.ContextMode,
+		IconTheme:    cfg.IconTheme,
+		Lines:        cfg.Lines,
+		LineColors:   cfg.LineColors,
+		DisplayMode:  cfg.DisplayMode,
+		WrapCommand:  cfg.WrapCommand,
+		BarStyle:     cfg.BarStyle,
+		BarShowPet:   barShowPet,
+		BarWidth:     cfg.BarWidth,
+		Powerline:    cfg.Powerline,
+		PowerlineSep: cfg.PowerlineSep,
+		Mood:         MoodSleeping,
+		Size:         SizeTiny,
+		LastEvent:    time.Now(),
 	}
 }
 

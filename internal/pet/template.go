@@ -471,7 +471,7 @@ func RenderLines(s *State, claudeJSON map[string]any) []string {
 		var rendered string
 		switch {
 		case s.Powerline:
-			rendered = RenderPowerlineLine(TemplateToSegments(tmpl), colors, data)
+			rendered = RenderPowerlineLine(TemplateToSegments(tmpl), colors, data, s.PowerlineSep)
 		case len(colors) > 0:
 			rendered = RenderColoredLine(TemplateToSegments(tmpl), colors, data)
 		default:

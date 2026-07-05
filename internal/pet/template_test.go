@@ -250,11 +250,12 @@ func TestRenderPowerlineLine(t *testing.T) {
 	segs := TemplateToSegments("{model} | {joy}")
 	colors := []uint8{51, 0, 212} // model=cyan, sep=0, joy=pink
 	data := &SegmentData{IconTheme: IconThemeText, Model: "Opus 4", Snacks: "5"}
-	out := RenderPowerlineLine(segs, colors, data)
+	out := RenderPowerlineLine(segs, colors, data, SepArrow)
 
 	// Two arrows (between blocks + trailing), no literal " | ".
-	if strings.Count(out, powerlineSep) != 2 {
-		t.Errorf("want 2 separators, got %d in %q", strings.Count(out, powerlineSep), out)
+	arrow := PowerlineSepGlyph(SepArrow)
+	if strings.Count(out, arrow) != 2 {
+		t.Errorf("want 2 separators, got %d in %q", strings.Count(out, arrow), out)
 	}
 	if strings.Contains(out, "|") {
 		t.Errorf("powerline line should not contain the plain separator: %q", out)
@@ -268,8 +269,32 @@ func TestRenderPowerlineLine(t *testing.T) {
 	}
 
 	// Empty input renders nothing.
-	if RenderPowerlineLine(TemplateToSegments("{cost}"), nil, &SegmentData{}) != "" {
+	if RenderPowerlineLine(TemplateToSegments("{cost}"), nil, &SegmentData{}, SepArrow) != "" {
 		t.Error("powerline line with only-empty tokens should be empty")
+	}
+}
+
+func TestRenderPowerlineLineSepStyles(t *testing.T) {
+	segs := TemplateToSegments("{model} | {joy}")
+	data := &SegmentData{IconTheme: IconThemeText, Model: "Opus 4", Snacks: "5"}
+
+	for _, style := range AllPowerlineSepStyles {
+		glyph := PowerlineSepGlyph(style)
+		out := RenderPowerlineLine(segs, nil, data, style)
+		if strings.Count(out, glyph) != 2 {
+			t.Errorf("style %q: want 2 %q separators, got %d in %q",
+				style, glyph, strings.Count(out, glyph), out)
+		}
+	}
+
+	// Unknown or empty styles (old configs) fall back to the arrow.
+	arrow := PowerlineSepGlyph(SepArrow)
+	if PowerlineSepGlyph("") != arrow {
+		t.Error("empty style should fall back to arrow glyph")
+	}
+	out := RenderPowerlineLine(segs, nil, data, "")
+	if strings.Count(out, arrow) != 2 {
+		t.Errorf("empty style: want 2 arrow separators in %q", out)
 	}
 }
 

@@ -5,20 +5,70 @@ import (
 	"strings"
 )
 
-// powerlineSep is the Nerd Font / Powerline right-facing separator (nf-ple-
-// left_hard_divider, U+E0B0). Powerline mode therefore needs a Powerline-capable
-// font, which every Nerd Font includes.
-const powerlineSep = ""
+// PowerlineSepStyle names the Nerd Font glyph drawn between powerline
+// segments. All glyphs come from the Powerline-extra range (nf-ple), which
+// every Nerd Font includes.
+type PowerlineSepStyle string
+
+const (
+	SepArrow     PowerlineSepStyle = "arrow"     // left hard divider
+	SepRound     PowerlineSepStyle = "round"     // right half circle thick
+	SepSlant     PowerlineSepStyle = "slant"     // upper left triangle
+	SepBackslant PowerlineSepStyle = "backslant" // lower left triangle
+	SepFlame     PowerlineSepStyle = "flame"     // flame thick
+	SepPixels    PowerlineSepStyle = "pixels"    // pixelated squares big
+)
+
+var AllPowerlineSepStyles = []PowerlineSepStyle{
+	SepArrow, SepRound, SepSlant, SepBackslant, SepFlame, SepPixels,
+}
+
+var powerlineSepGlyphs = map[PowerlineSepStyle]string{
+	SepArrow:     "",
+	SepRound:     "",
+	SepSlant:     "",
+	SepBackslant: "",
+	SepFlame:     "",
+	SepPixels:    "",
+}
+
+// PowerlineSepGlyph returns the glyph for a separator style, falling back to
+// the arrow for unknown or empty styles (pre-existing configs).
+func PowerlineSepGlyph(s PowerlineSepStyle) string {
+	if g, ok := powerlineSepGlyphs[s]; ok {
+		return g
+	}
+	return powerlineSepGlyphs[SepArrow]
+}
+
+func PowerlineSepLabel(s PowerlineSepStyle) string {
+	switch s {
+	case SepRound:
+		return "Round"
+	case SepSlant:
+		return "Slant"
+	case SepBackslant:
+		return "Backslant"
+	case SepFlame:
+		return "Flame"
+	case SepPixels:
+		return "Pixels"
+	default:
+		return "Arrow"
+	}
+}
 
 // powerlineDefaultBg is the background applied to a segment that has no color
 // assigned, so every segment still renders as a filled block.
 const powerlineDefaultBg uint8 = 238
 
 // RenderPowerlineLine renders segments as filled colored blocks joined by
-// powerline arrows. Each segment's configured color is used as its background;
-// the foreground auto-contrasts. Literal separators in the template are dropped
-// (the arrows replace them) and empty tokens are skipped.
-func RenderPowerlineLine(segs []Segment, colors []uint8, data *SegmentData) string {
+// powerline separators of the given style. Each segment's configured color is
+// used as its background; the foreground auto-contrasts. Literal separators in
+// the template are dropped (the glyphs replace them) and empty tokens are
+// skipped.
+func RenderPowerlineLine(segs []Segment, colors []uint8, data *SegmentData, sepStyle PowerlineSepStyle) string {
+	sep := PowerlineSepGlyph(sepStyle)
 	type block struct {
 		text string
 		bg   uint8
@@ -57,12 +107,12 @@ func RenderPowerlineLine(segs []Segment, colors []uint8, data *SegmentData) stri
 		// Filled block: " text " on the segment background.
 		fmt.Fprintf(&b, "\x1b[38;5;%d;48;5;%dm %s ", fg, blk.bg, blk.text)
 		if i+1 < len(blocks) {
-			// Transition arrow: its foreground is this block's background and
+			// Transition glyph: its foreground is this block's background and
 			// its background is the next block's, so the colors flow together.
-			fmt.Fprintf(&b, "\x1b[38;5;%d;48;5;%dm%s", blk.bg, blocks[i+1].bg, powerlineSep)
+			fmt.Fprintf(&b, "\x1b[38;5;%d;48;5;%dm%s", blk.bg, blocks[i+1].bg, sep)
 		} else {
-			// Trailing arrow fades the last block into the default background.
-			fmt.Fprintf(&b, "\x1b[0m\x1b[38;5;%dm%s\x1b[0m", blk.bg, powerlineSep)
+			// Trailing glyph fades the last block into the default background.
+			fmt.Fprintf(&b, "\x1b[0m\x1b[38;5;%dm%s\x1b[0m", blk.bg, sep)
 		}
 	}
 	return b.String()

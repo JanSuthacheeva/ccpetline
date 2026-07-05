@@ -76,7 +76,11 @@ Colors are configured separately, per segment, via the color picker in **Edit Li
 Enable **Powerline** in `ccpetline-config` (under **Bar Style**) to render each segment as a
 filled block joined by `` arrows. In this mode the per-segment colors become segment
 **backgrounds** and the text color auto-contrasts. Powerline needs a Nerd Font (every Nerd
-Font ships the arrow glyph).
+Font ships the separator glyphs).
+
+The separator glyph is configurable via the **Separator** row that appears below the
+Powerline toggle: Arrow ``, Round ``, Slant ``, Backslant ``, Flame `` or
+Pixels ``.
 
 ## Architecture
 

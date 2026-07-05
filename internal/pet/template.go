@@ -1,10 +1,8 @@
 package pet
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -50,7 +48,7 @@ func SampleSegmentData(species Species, size Size, barStyle BarStyle, barShowPet
 		Pet:        SizeEmoji(species, size),
 		Mood:       "bored",
 		Snacks:     "5",
-		Bar:        FormatSeparator(sampleState),
+		Bar:        RenderContextBar(sampleState),
 		Model:      "Opus 4",
 		Ctx:        "53%",
 		Cost:       "0.42",
@@ -87,16 +85,6 @@ func SegmentsToTemplate(segs []Segment, separator string) string {
 	return b.String()
 }
 
-// TokensToTemplate joins token names into a template string like "{a} | {b}".
-// Kept for backward compatibility.
-func TokensToTemplate(tokens []string) string {
-	parts := make([]string, len(tokens))
-	for i, t := range tokens {
-		parts[i] = "{" + t + "}"
-	}
-	return strings.Join(parts, " | ")
-}
-
 var (
 	tokenRe = regexp.MustCompile(`\{(\w+)\}`)
 	cmdRe   = regexp.MustCompile(`\[cmd:\s*(.+?)\]`)
@@ -108,7 +96,7 @@ func TemplateToSegments(tmpl string) []Segment {
 	var segs []Segment
 	last := 0
 	for _, loc := range segRe.FindAllStringSubmatchIndex(tmpl, -1) {
-		// literal text before this match — skip whitespace-only gaps
+		// literal text before this match - skip whitespace-only gaps
 		// (adjacent tokens get auto-spaced)
 		if loc[0] > last {
 			lit := tmpl[last:loc[0]]
@@ -136,17 +124,6 @@ func TemplateToSegments(tmpl string) []Segment {
 	return segs
 }
 
-// TemplateToTokens parses a template string back into token names.
-// Kept for backward compatibility.
-func TemplateToTokens(tmpl string) []string {
-	matches := tokenRe.FindAllStringSubmatch(tmpl, -1)
-	var tokens []string
-	for _, m := range matches {
-		tokens = append(tokens, m[1])
-	}
-	return tokens
-}
-
 // SegmentData holds all resolved token values for template rendering. Scalar
 // fields (Branch, Model, Snacks, Cost, Changes, ...) hold RAW values; label
 // text and Nerd Font glyphs are applied per IconTheme in resolveToken. Pet and
@@ -170,8 +147,8 @@ type SegmentData struct {
 	Limit7dBar string
 }
 
-// BuildSegmentData resolves all token values from state, Claude JSON, and OS.
-func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
+// BuildSegmentData resolves all token values from state, Claude input, and OS.
+func BuildSegmentData(s *State, in *ClaudeInput) *SegmentData {
 	d := &SegmentData{IconTheme: s.IconTheme}
 
 	// {cwd}
@@ -185,8 +162,8 @@ func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
 	}
 
 	// {branch}
-	if out, err := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output(); err == nil {
-		d.Branch = strings.TrimSpace(string(out))
+	if out, err := runCommand("git", "rev-parse", "--abbrev-ref", "HEAD"); err == nil {
+		d.Branch = out
 	}
 
 	// {pet}
@@ -196,51 +173,45 @@ func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
 	d.Mood = MoodLabel(s.Species, s.Mood)
 
 	// {snacks}
-	d.Snacks = fmt.Sprintf("%d", s.Happiness)
+	d.Snacks = strconv.Itoa(s.Happiness)
 
 	// {bar}
-	d.Bar = FormatSeparator(s)
+	d.Bar = RenderContextBar(s)
 
-	// Fields from claudeJSON
-	if claudeJSON == nil {
+	// Fields from the Claude payload
+	if in == nil {
 		return d
 	}
 
 	// {model}
-	if model, ok := claudeJSON["model"].(map[string]any); ok {
-		if name, ok := model["display_name"].(string); ok && name != "" {
-			d.Model = name
-		} else if id, ok := model["id"].(string); ok && id != "" {
-			d.Model = id
-		}
+	if in.Model.DisplayName != "" {
+		d.Model = in.Model.DisplayName
+	} else if in.Model.ID != "" {
+		d.Model = in.Model.ID
 	}
 
 	// {ctx}
-	if cw, ok := claudeJSON["context_window"].(map[string]any); ok {
-		if pct, ok := cw["used_percentage"].(float64); ok && pct > 0 {
-			d.Ctx = fmt.Sprintf("%.0f%%", pct)
-		}
+	if pct := in.ContextWindow.UsedPercentage; pct != nil && *pct > 0 {
+		d.Ctx = fmt.Sprintf("%.0f%%", *pct)
 	}
 
 	// {cost}
-	if cost, ok := claudeJSON["cost"].(map[string]any); ok {
-		if total, ok := cost["total_cost_usd"].(float64); ok && total > 0 {
-			d.Cost = fmt.Sprintf("%.2f", total)
-		}
+	if in.Cost.TotalCostUSD > 0 {
+		d.Cost = fmt.Sprintf("%.2f", in.Cost.TotalCostUSD)
 	}
 
-	// {5h} and {7d} — subscription rate limit usage.
+	// {5h} and {7d} - subscription rate limit usage.
 	// Absent until the first API response of the session; each window
 	// may be independently missing, so resolve them separately.
-	if rl, ok := claudeJSON["rate_limits"].(map[string]any); ok {
+	if in.RateLimits != nil {
 		now := time.Now()
-		d.Limit5h = formatRateLimit(rl, "five_hour", "5h", now)
-		d.Limit7d = formatRateLimit(rl, "seven_day", "7d", now)
-		d.Limit5hBar = formatRateLimitBar(rl, "five_hour", "5h", s)
-		d.Limit7dBar = formatRateLimitBar(rl, "seven_day", "7d", s)
+		d.Limit5h = formatRateLimit(in.RateLimits, "five_hour", "5h", now)
+		d.Limit7d = formatRateLimit(in.RateLimits, "seven_day", "7d", now)
+		d.Limit5hBar = formatRateLimitBar(in.RateLimits, "five_hour", "5h", s)
+		d.Limit7dBar = formatRateLimitBar(in.RateLimits, "seven_day", "7d", s)
 	}
 
-	// {changes} — staged + unstaged git line changes
+	// {changes} - staged + unstaged git line changes
 	if added, removed, err := gitChanges(); err == nil {
 		d.Changes = fmt.Sprintf("+%d/-%d", added, removed)
 	}
@@ -252,21 +223,30 @@ func BuildSegmentData(s *State, claudeJSON map[string]any) *SegmentData {
 // "<label>: <pct>% (<duration>)", or "" when the window is absent.
 // The reset part is omitted when resets_at is missing or already passed.
 func formatRateLimit(rateLimits map[string]any, window, label string, now time.Time) string {
-	w, ok := rateLimits[window].(map[string]any)
-	if !ok {
-		return ""
-	}
-	pct, ok := w["used_percentage"].(float64)
+	pct, ok := rateLimitPct(rateLimits, window)
 	if !ok {
 		return ""
 	}
 	out := fmt.Sprintf("%s: %.0f%%", label, pct)
-	if resetsAt, ok := w["resets_at"].(float64); ok {
-		if remaining := time.Unix(int64(resetsAt), 0).Sub(now); remaining > 0 {
-			out += fmt.Sprintf(" (%s)", formatDuration(remaining))
+	if w, ok := rateLimits[window].(map[string]any); ok {
+		if resetsAt, ok := w["resets_at"].(float64); ok {
+			if remaining := time.Unix(int64(resetsAt), 0).Sub(now); remaining > 0 {
+				out += fmt.Sprintf(" (%s)", formatDuration(remaining))
+			}
 		}
 	}
 	return out
+}
+
+// rateLimitPct extracts used_percentage for one rate limit window, reporting
+// whether the window is present.
+func rateLimitPct(rateLimits map[string]any, window string) (float64, bool) {
+	w, ok := rateLimits[window].(map[string]any)
+	if !ok {
+		return 0, false
+	}
+	pct, ok := w["used_percentage"].(float64)
+	return pct, ok
 }
 
 // formatDuration renders a duration compactly: "37m", "2h 14m", "3d 5h".
@@ -287,11 +267,7 @@ func formatDuration(d time.Duration) string {
 // formatRateLimitBar renders one rate limit window as a progress bar using
 // the configured bar style and width, or "" when the window is absent.
 func formatRateLimitBar(rateLimits map[string]any, window, label string, s *State) string {
-	w, ok := rateLimits[window].(map[string]any)
-	if !ok {
-		return ""
-	}
-	pct, ok := w["used_percentage"].(float64)
+	pct, ok := rateLimitPct(rateLimits, window)
 	if !ok {
 		return ""
 	}
@@ -353,80 +329,96 @@ func resolveToken(key string, data *SegmentData) string {
 	return decorateToken(data.IconTheme, key, raw)
 }
 
-// execCommand runs a shell command with a timeout and returns its output.
+// execCommand runs a shell command with the standard timeout and returns its
+// output, or "<err>" so a broken command is visible in the status line.
 func execCommand(cmd string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "sh", "-c", cmd).Output()
+	out, err := runCommand("sh", "-c", cmd)
 	if err != nil {
 		return "<err>"
 	}
-	return strings.TrimSpace(string(out))
+	return out
 }
 
-// RenderColoredLine resolves segments, filters empties and dangling separators,
-// auto-spaces between non-separator segments, and applies per-segment colors.
-func RenderColoredLine(segs []Segment, colors []uint8, data *SegmentData) string {
-	// Resolve each segment's text.
-	type resolved struct {
-		text  string
-		kind  SegmentKind
-		color uint8
-	}
-	items := make([]resolved, len(segs))
+// ResolvedSegment is a segment whose value has been resolved to display text.
+type ResolvedSegment struct {
+	Text  string
+	Kind  SegmentKind
+	Color uint8
+}
+
+// ResolveSegments pairs each segment with its color and resolves it to
+// display text using resolve.
+func ResolveSegments(segs []Segment, colors []uint8, resolve func(Segment) string) []ResolvedSegment {
+	items := make([]ResolvedSegment, len(segs))
 	for i, seg := range segs {
 		var color uint8
 		if i < len(colors) {
 			color = colors[i]
 		}
-		switch seg.Kind {
-		case KindToken:
-			items[i] = resolved{text: resolveToken(seg.Value, data), kind: KindToken, color: color}
-		case KindCommand:
-			items[i] = resolved{text: execCommand(seg.Value), kind: KindCommand, color: color}
-		case KindSeparator:
-			items[i] = resolved{text: seg.Value, kind: KindSeparator, color: color}
-		}
+		items[i] = ResolvedSegment{Text: resolve(seg), Kind: seg.Kind, Color: color}
 	}
+	return items
+}
 
+// AssembleColoredLine filters empty tokens and dangling separators, auto-spaces
+// between non-separator segments, and joins the results, coloring each segment
+// with colorize. It is the single assembly pipeline shared by the statusline
+// renderer and the config TUI preview so the two cannot drift.
+func AssembleColoredLine(items []ResolvedSegment, colorize func(text string, color uint8) string) string {
 	// Filter empty tokens and dangling separators.
-	var filtered []resolved
+	var filtered []ResolvedSegment
 	for _, r := range items {
-		if r.kind != KindSeparator && r.text == "" {
+		if r.Kind != KindSeparator && r.Text == "" {
 			continue
 		}
 		filtered = append(filtered, r)
 	}
 	// Remove leading/trailing separators and collapse adjacent separators.
-	var cleaned []resolved
+	var cleaned []ResolvedSegment
 	for i, r := range filtered {
-		if r.kind == KindSeparator {
+		if r.Kind == KindSeparator {
 			if len(cleaned) == 0 {
 				continue // leading separator
 			}
 			if i == len(filtered)-1 {
 				continue // trailing separator
 			}
-			if cleaned[len(cleaned)-1].kind == KindSeparator {
+			if cleaned[len(cleaned)-1].Kind == KindSeparator {
 				continue // consecutive separator
 			}
 		}
 		cleaned = append(cleaned, r)
 	}
 	// Remove trailing separator that might remain.
-	if len(cleaned) > 0 && cleaned[len(cleaned)-1].kind == KindSeparator {
+	if len(cleaned) > 0 && cleaned[len(cleaned)-1].Kind == KindSeparator {
 		cleaned = cleaned[:len(cleaned)-1]
 	}
 
 	// Build output with auto-spacing and colors.
 	var b strings.Builder
 	for i, r := range cleaned {
-		if i > 0 && r.kind != KindSeparator && cleaned[i-1].kind != KindSeparator {
+		if i > 0 && r.Kind != KindSeparator && cleaned[i-1].Kind != KindSeparator {
 			b.WriteByte(' ')
 		}
-		b.WriteString(ColorSegment(r.text, r.color))
+		b.WriteString(colorize(r.Text, r.Color))
 	}
 	return b.String()
+}
+
+// RenderColoredLine resolves segments, filters empties and dangling separators,
+// auto-spaces between non-separator segments, and applies per-segment colors.
+func RenderColoredLine(segs []Segment, colors []uint8, data *SegmentData) string {
+	items := ResolveSegments(segs, colors, func(seg Segment) string {
+		switch seg.Kind {
+		case KindToken:
+			return resolveToken(seg.Value, data)
+		case KindCommand:
+			return execCommand(seg.Value)
+		default:
+			return seg.Value
+		}
+	})
+	return AssembleColoredLine(items, ColorSegment)
 }
 
 // RenderTemplate replaces {token} placeholders and [cmd: ...] commands,
@@ -459,8 +451,8 @@ func RenderTemplate(tmpl string, data *SegmentData) string {
 
 // RenderLines renders all configured line templates, skipping empty results.
 // Falls back to a single {bar} line if everything is empty.
-func RenderLines(s *State, claudeJSON map[string]any) []string {
-	data := BuildSegmentData(s, claudeJSON)
+func RenderLines(s *State, in *ClaudeInput) []string {
+	data := BuildSegmentData(s, in)
 
 	var lines []string
 	for i, tmpl := range s.Lines {
@@ -483,7 +475,7 @@ func RenderLines(s *State, claudeJSON map[string]any) []string {
 	}
 
 	if len(lines) == 0 {
-		lines = []string{FormatSeparator(s)}
+		lines = []string{RenderContextBar(s)}
 	}
 
 	return lines
@@ -491,17 +483,18 @@ func RenderLines(s *State, claudeJSON map[string]any) []string {
 
 // gitChanges returns added/removed line counts from both staged and unstaged changes.
 func gitChanges() (added, removed int, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	for _, args := range [][]string{
+	cmds := [][]string{
 		{"git", "diff", "--shortstat"},
 		{"git", "diff", "--cached", "--shortstat"},
-	} {
-		out, err := exec.CommandContext(ctx, args[0], args[1:]...).Output()
-		if err != nil {
+	}
+	failures := 0
+	for _, args := range cmds {
+		s, cmdErr := runCommand(args[0], args[1:]...)
+		if cmdErr != nil {
+			failures++
+			err = cmdErr
 			continue
 		}
-		s := string(out)
 		if m := regexp.MustCompile(`(\d+) insertion`).FindStringSubmatch(s); len(m) > 1 {
 			if n, err := strconv.Atoi(m[1]); err == nil {
 				added += n
@@ -512,6 +505,11 @@ func gitChanges() (added, removed int, err error) {
 				removed += n
 			}
 		}
+	}
+	// Outside a git repository both invocations fail; report that instead
+	// of a fake +0/-0.
+	if failures == len(cmds) {
+		return 0, 0, err
 	}
 	return added, removed, nil
 }

@@ -6,10 +6,11 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
-const stateDir = "/tmp"
+var stateDir = os.TempDir()
 
 // StatePath returns the state file path for a given session ID.
 // Falls back to a default path if sessionID is empty.
@@ -20,6 +21,7 @@ func StatePath(sessionID string) string {
 	return filepath.Join(stateDir, fmt.Sprintf("ccpetline-state-%s.json", sessionID))
 }
 
+// Species identifies which pet the user picked.
 type Species string
 
 const (
@@ -30,8 +32,11 @@ const (
 	SpeciesDino   Species = "dino"
 )
 
+// AllSpecies is the ordered list of selectable species.
 var AllSpecies = []Species{SpeciesGoose, SpeciesCat, SpeciesOcean, SpeciesDragon, SpeciesDino}
 
+// ContextMode selects how context usage is displayed: raw ({ctx}) or scaled
+// to the usable window before auto-compact ({ctx_u}).
 type ContextMode string
 
 const (
@@ -39,8 +44,8 @@ const (
 	ContextModeCtxU ContextMode = "ctx_u"
 )
 
-var AllContextModes = []ContextMode{ContextModeCtx, ContextModeCtxU}
-
+// ParseContextMode normalizes a raw string to a known context mode,
+// defaulting to ctx.
 func ParseContextMode(s string) ContextMode {
 	if ContextMode(s) == ContextModeCtxU {
 		return ContextModeCtxU
@@ -48,15 +53,18 @@ func ParseContextMode(s string) ContextMode {
 	return ContextModeCtx
 }
 
+// ParseSpecies normalizes a raw string to a known species, defaulting to the
+// same cat that defaultConfig uses.
 func ParseSpecies(s string) Species {
 	switch Species(s) {
 	case SpeciesGoose, SpeciesCat, SpeciesOcean, SpeciesDragon, SpeciesDino:
 		return Species(s)
 	default:
-		return SpeciesGoose
+		return SpeciesCat
 	}
 }
 
+// Mood is the pet's current activity, derived from recent hook events.
 type Mood int
 
 const (
@@ -72,8 +80,12 @@ const (
 	MoodSleeping
 )
 
-var ActiveMoods = []Mood{MoodEating, MoodChasing, MoodDigging, MoodFetching, MoodPouncing}
-var IdleMoods = []Mood{MoodBored, MoodNapping, MoodGrooming, MoodWandering}
+var (
+	// ActiveMoods are picked randomly while tools are running.
+	ActiveMoods = []Mood{MoodEating, MoodChasing, MoodDigging, MoodFetching, MoodPouncing}
+	// IdleMoods are picked randomly once activity dies down.
+	IdleMoods = []Mood{MoodBored, MoodNapping, MoodGrooming, MoodWandering}
+)
 
 func (m Mood) String() string {
 	switch m {
@@ -146,6 +158,7 @@ func MoodLabel(species Species, mood Mood) string {
 	return mood.String()
 }
 
+// Size is the pet's growth stage, derived from context usage.
 type Size int
 
 const (
@@ -183,6 +196,9 @@ func SizeFromContext(pct float64) Size {
 	}
 }
 
+// State is the per-session pet state persisted between hook and statusline
+// invocations. It duplicates the display settings from Config as a snapshot;
+// ApplyConfig is the single place that copy happens.
 type State struct {
 	Species        Species           `json:"species"`
 	ContextMode    ContextMode       `json:"context_mode"`
@@ -204,35 +220,42 @@ type State struct {
 	LastMoodChange time.Time         `json:"last_mood_change"`
 }
 
+// NewState returns a fresh sleeping pet configured from the user's config.
 func NewState() *State {
-	cfg := LoadConfig()
-	barShowPet := true
+	s := &State{
+		BarShowPet: true,
+		Mood:       MoodSleeping,
+		Size:       SizeTiny,
+		LastEvent:  time.Now(),
+	}
+	s.ApplyConfig(LoadConfig())
+	return s
+}
+
+// ApplyConfig copies the display settings snapshot from cfg into s. This is
+// the single place where Config fields map onto their State duplicates; new
+// settings only need to be added here.
+func (s *State) ApplyConfig(cfg *Config) {
+	s.Species = cfg.Species
+	s.ContextMode = cfg.ContextMode
+	s.IconTheme = cfg.IconTheme
+	s.Lines = cfg.Lines
+	s.LineColors = cfg.LineColors
+	s.DisplayMode = cfg.DisplayMode
+	s.WrapCommand = cfg.WrapCommand
+	s.BarStyle = cfg.BarStyle
 	if cfg.BarShowPet != nil {
-		barShowPet = *cfg.BarShowPet
+		s.BarShowPet = *cfg.BarShowPet
 	}
-	return &State{
-		Species:      cfg.Species,
-		ContextMode:  cfg.ContextMode,
-		IconTheme:    cfg.IconTheme,
-		Lines:        cfg.Lines,
-		LineColors:   cfg.LineColors,
-		DisplayMode:  cfg.DisplayMode,
-		WrapCommand:  cfg.WrapCommand,
-		BarStyle:     cfg.BarStyle,
-		BarShowPet:   barShowPet,
-		BarWidth:     cfg.BarWidth,
-		Powerline:    cfg.Powerline,
-		PowerlineSep: cfg.PowerlineSep,
-		Mood:         MoodSleeping,
-		Size:         SizeTiny,
-		LastEvent:    time.Now(),
-	}
+	s.BarWidth = cfg.BarWidth
+	s.Powerline = cfg.Powerline
+	s.PowerlineSep = cfg.PowerlineSep
 }
 
 const moodCooldown = 60 * time.Second
 
 // Feed processes a snack event.
-func (s *State) Feed(toolName string) {
+func (s *State) Feed() {
 	s.Happiness++
 	s.LastEvent = time.Now()
 	if time.Since(s.LastMoodChange) >= moodCooldown {
@@ -262,7 +285,7 @@ func (s *State) Sleep() {
 }
 
 // ComputeMood derives the current mood from the LastEvent timestamp.
-// This replaces the old Tick() loop — mood is computed on-read.
+// This replaces the old Tick() loop - mood is computed on-read.
 // Mood changes are rate-limited to once per moodCooldown.
 func (s *State) ComputeMood() {
 	if s.Mood == MoodSleeping {
@@ -283,6 +306,32 @@ func (s *State) ComputeMood() {
 	}
 }
 
+// isStateFile reports whether name is a ccpetline session state file.
+func isStateFile(name string) bool {
+	return strings.HasPrefix(name, "ccpetline-state") && strings.HasSuffix(name, ".json")
+}
+
+// isStateTempFile reports whether name is a temp file orphaned by a crash
+// between CreateTemp and rename in SaveState.
+func isStateTempFile(name string) bool {
+	return strings.HasPrefix(name, "ccpetline-state") && strings.Contains(name, ".json.tmp-")
+}
+
+// statePaths returns the full paths of all session state files in stateDir.
+func statePaths() []string {
+	entries, err := os.ReadDir(stateDir)
+	if err != nil {
+		return nil
+	}
+	var paths []string
+	for _, e := range entries {
+		if !e.IsDir() && isStateFile(e.Name()) {
+			paths = append(paths, filepath.Join(stateDir, e.Name()))
+		}
+	}
+	return paths
+}
+
 // CleanStaleStates removes state files not modified in the given duration.
 func CleanStaleStates(maxAge time.Duration) {
 	entries, err := os.ReadDir(stateDir)
@@ -294,7 +343,7 @@ func CleanStaleStates(maxAge time.Duration) {
 			continue
 		}
 		name := e.Name()
-		if len(name) < 20 || name[:15] != "ccpetline-state" || name[len(name)-5:] != ".json" {
+		if !isStateFile(name) && !isStateTempFile(name) {
 			continue
 		}
 		info, err := e.Info()
@@ -317,25 +366,29 @@ func LoadState(path string) *State {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return NewState()
 	}
+	normalizeState(&s)
 	return &s
 }
 
-// SaveState writes pet state to a JSON file atomically (temp + rename).
+// normalizeState applies the same validation to a loaded state that
+// LoadConfig applies to configs, so a hand-edited or corrupted state file
+// cannot render outside sane bounds.
+func normalizeState(s *State) {
+	s.Species = ParseSpecies(string(s.Species))
+	s.ContextMode = ParseContextMode(string(s.ContextMode))
+	s.BarWidth = clampBarWidth(s.BarWidth)
+}
+
+// SaveState writes pet state to a JSON file atomically. The write goes
+// through writeFileAtomic because the hook, statusline, and config binaries
+// can all save the same state file concurrently.
 func SaveState(path string, s *State) error {
 	data, err := json.Marshal(s)
 	if err != nil {
 		return fmt.Errorf("marshal state: %w", err)
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err != nil {
-		return fmt.Errorf("write temp: %w", err)
+	if err := writeFileAtomic(path, data, 0o644); err != nil {
+		return fmt.Errorf("write state: %w", err)
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		// Clean up temp file on rename failure
-		os.Remove(tmp)
-		return fmt.Errorf("rename: %w", err)
-	}
-	// Ensure parent dir exists (for first write)
-	_ = os.MkdirAll(filepath.Dir(path), 0755)
 	return nil
 }

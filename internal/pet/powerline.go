@@ -20,6 +20,7 @@ const (
 	SepNone      PowerlineSepStyle = "none"      // no glyph, straight edge
 )
 
+// AllPowerlineSepStyles is the ordered list of selectable separator styles.
 var AllPowerlineSepStyles = []PowerlineSepStyle{
 	SepArrow, SepRound, SepSlant, SepBackslant, SepFlame, SepPixels, SepNone,
 }
@@ -43,6 +44,7 @@ func PowerlineSepGlyph(s PowerlineSepStyle) string {
 	return powerlineSepGlyphs[SepArrow]
 }
 
+// PowerlineSepLabel returns a human-readable name for a separator style.
 func PowerlineSepLabel(s PowerlineSepStyle) string {
 	switch s {
 	case SepRound:

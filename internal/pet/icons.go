@@ -12,25 +12,12 @@ const (
 	IconThemeNerd IconTheme = "nerd"
 )
 
-// AllIconThemes is the ordered list of selectable icon themes.
-var AllIconThemes = []IconTheme{IconThemeText, IconThemeNerd}
-
 // ParseIconTheme normalizes a raw string to a known theme, defaulting to text.
 func ParseIconTheme(s string) IconTheme {
 	if IconTheme(s) == IconThemeNerd {
 		return IconThemeNerd
 	}
 	return IconThemeText
-}
-
-// IconThemeLabel returns a human-readable name for an icon theme.
-func IconThemeLabel(t IconTheme) string {
-	switch t {
-	case IconThemeNerd:
-		return "Nerd Font"
-	default:
-		return "Text"
-	}
 }
 
 // nerdTokenGlyphs maps a token key to its Nerd Font prefix glyph. All are drawn
@@ -51,14 +38,39 @@ var nerdTokenGlyphs = map[string]string{
 	"joy":     "", // nf-fa-heart
 }
 
-// TokenIcon returns the Nerd Font glyph representing a token for UI display in
-// the nerd theme, or "" when the theme is text or the token has no glyph. The
-// config UI uses this so its per-token icons match the rendered status line.
+// tokenEmojiFallbacks maps a token key to the emoji shown for it in UI
+// pickers when no Nerd Font glyph applies. Kept next to nerdTokenGlyphs so a
+// new token needs exactly one edit per theme.
+var tokenEmojiFallbacks = map[string]string{
+	"pet":     "\U0001F43E",
+	"mood":    "\U0001F60A",
+	"joy":     "\U0001F496",
+	"bar":     "\U0001F4CA",
+	"ctx_bar": "\U0001F4CA",
+	"model":   "\U0001F916",
+	"ctx":     "\U0001F4D0",
+	"cost":    "\U0001F4B0",
+	"changes": "\U0001F4DD",
+	"cwd":     "\U0001F4C2",
+	"dir":     "\U0001F4C1",
+	"branch":  "\U0001F33F",
+	"5h":      "\u23F3",
+	"7d":      "\U0001F4C5",
+	"5h_bar":  "\U0001F4CA",
+	"7d_bar":  "\U0001F4CA",
+}
+
+// TokenIcon returns the icon representing a token in UI pickers: the Nerd
+// Font glyph in the nerd theme (when one exists), otherwise the emoji
+// fallback. The config UI uses this so its per-token icons match the
+// rendered status line.
 func TokenIcon(theme IconTheme, key string) string {
 	if theme == IconThemeNerd {
-		return nerdTokenGlyphs[key]
+		if g, ok := nerdTokenGlyphs[key]; ok {
+			return g
+		}
 	}
-	return ""
+	return tokenEmojiFallbacks[key]
 }
 
 // textBranchMarker is the non-Nerd branch prefix. It replaces the historical

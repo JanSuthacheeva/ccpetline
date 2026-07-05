@@ -1,6 +1,7 @@
 package pet
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -51,6 +52,48 @@ func TestFormatRateLimit(t *testing.T) {
 	}
 }
 
+func TestAssembleColoredLine(t *testing.T) {
+	sep := ResolvedSegment{Text: "|", Kind: KindSeparator}
+	tok := func(s string) ResolvedSegment { return ResolvedSegment{Text: s, Kind: KindToken} }
+	plain := func(text string, _ uint8) string { return text }
+
+	tests := []struct {
+		name  string
+		items []ResolvedSegment
+		want  string
+	}{
+		{"auto-spacing between tokens", []ResolvedSegment{tok("a"), tok("b")}, "a b"},
+		{"separator kept between tokens", []ResolvedSegment{tok("a"), sep, tok("b")}, "a|b"},
+		{"empty token dropped with its separator", []ResolvedSegment{tok("a"), sep, tok(""), sep, tok("b")}, "a|b"},
+		{"leading separator dropped", []ResolvedSegment{sep, tok("a")}, "a"},
+		{"trailing separator dropped", []ResolvedSegment{tok("a"), sep}, "a"},
+		{"all empty", []ResolvedSegment{tok(""), sep}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := AssembleColoredLine(tt.items, plain); got != tt.want {
+				t.Errorf("AssembleColoredLine = %q, want %q", got, tt.want)
+			}
+		})
+	}
+
+	// The colorize callback receives each segment's color.
+	items := []ResolvedSegment{{Text: "a", Kind: KindToken, Color: 7}}
+	got := AssembleColoredLine(items, func(text string, color uint8) string {
+		return fmt.Sprintf("<%d>%s", color, text)
+	})
+	if got != "<7>a" {
+		t.Errorf("colorize not applied: %q", got)
+	}
+}
+
+func TestGitChangesOutsideRepo(t *testing.T) {
+	t.Chdir(t.TempDir())
+	if _, _, err := gitChanges(); err == nil {
+		t.Fatal("gitChanges outside a git repository should return an error")
+	}
+}
+
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		d    time.Duration
@@ -73,34 +116,30 @@ func TestBuildSegmentDataRateLimits(t *testing.T) {
 	// No resets_at in fixtures: keeps expectations independent of time.Now().
 	tests := []struct {
 		name       string
-		claudeJSON map[string]any
+		rateLimits map[string]any
 		want5h     string
 		want7d     string
 	}{
 		{
 			name: "both windows present",
-			claudeJSON: map[string]any{
-				"rate_limits": map[string]any{
-					"five_hour": map[string]any{"used_percentage": 9.0},
-					"seven_day": map[string]any{"used_percentage": 41.2},
-				},
+			rateLimits: map[string]any{
+				"five_hour": map[string]any{"used_percentage": 9.0},
+				"seven_day": map[string]any{"used_percentage": 41.2},
 			},
 			want5h: "5h: 9%",
 			want7d: "7d: 41%",
 		},
 		{
 			name: "one window absent",
-			claudeJSON: map[string]any{
-				"rate_limits": map[string]any{
-					"five_hour": map[string]any{"used_percentage": 9.0},
-				},
+			rateLimits: map[string]any{
+				"five_hour": map[string]any{"used_percentage": 9.0},
 			},
 			want5h: "5h: 9%",
 			want7d: "",
 		},
 		{
 			name:       "rate_limits absent",
-			claudeJSON: map[string]any{},
+			rateLimits: nil,
 			want5h:     "",
 			want7d:     "",
 		},
@@ -108,7 +147,7 @@ func TestBuildSegmentDataRateLimits(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := BuildSegmentData(s, tt.claudeJSON)
+			d := BuildSegmentData(s, &ClaudeInput{RateLimits: tt.rateLimits})
 			if d.Limit5h != tt.want5h {
 				t.Errorf("Limit5h = %q, want %q", d.Limit5h, tt.want5h)
 			}
@@ -121,13 +160,13 @@ func TestBuildSegmentDataRateLimits(t *testing.T) {
 
 func TestBuildSegmentDataRateLimitBars(t *testing.T) {
 	s := &State{Species: SpeciesGoose, Size: SizeNormal, BarStyle: BarBlock, BarWidth: 30}
-	claudeJSON := map[string]any{
-		"rate_limits": map[string]any{
+	in := &ClaudeInput{
+		RateLimits: map[string]any{
 			"five_hour": map[string]any{"used_percentage": 50.0},
 		},
 	}
 
-	d := BuildSegmentData(s, claudeJSON)
+	d := BuildSegmentData(s, in)
 	want := renderBarLine(50, " 5h: 50%", BarBlock, 30)
 	if d.Limit5hBar != want {
 		t.Errorf("Limit5hBar = %q, want %q", d.Limit5hBar, want)
@@ -213,10 +252,10 @@ func TestDefaultLineColors(t *testing.T) {
 	}
 }
 
-// TestFormatSeparatorWidth guards the bar-width fix: the rendered line must
+// TestRenderContextBarWidth guards the bar-width fix: the rendered line must
 // occupy exactly BarWidth display cells regardless of the pet's cell width
 // (emoji are 2 cells, Nerd glyphs 1).
-func TestFormatSeparatorWidth(t *testing.T) {
+func TestRenderContextBarWidth(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		theme IconTheme
@@ -230,7 +269,7 @@ func TestFormatSeparatorWidth(t *testing.T) {
 			Species: SpeciesCat, Size: SizeNormal, ContextPct: 53.1,
 			BarStyle: BarThin, BarShowPet: tc.pet, BarWidth: 50, IconTheme: tc.theme,
 		}
-		out := FormatSeparator(s)
+		out := RenderContextBar(s)
 		if w := cellWidth(out); w != 50 {
 			t.Errorf("%s: width = %d, want 50 (%q)", tc.name, w, out)
 		}

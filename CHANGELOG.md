@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: `{changes}` no longer renders a fake `+0/-0` outside git repositories; the segment is simply omitted
+- Fixed: state files now use the OS temp directory instead of a hardcoded `/tmp`, so hooks and the statusline work on Windows
+- Fixed: self-update validates the downloaded archive before replacing the installed binaries; a corrupt download can no longer leave you with no binaries
+- Fixed: concurrent state writes (async hook + statusline) use unique temp files, so a torn state file can no longer be renamed into place
+- Fixed: pre-release tags like `0.0.8-rc1` compare correctly in the update check
+- Changed: a malformed `config.json` is preserved as `config.json.bad` and defaults are used, instead of the file being silently overwritten on the next save
+- Changed: invalid config values (unknown species, bar style, separator style, out-of-range bar width) are normalized to defaults on load, for state files as well
+- Changed: the statusline never exits non-zero (it renders from persisted state on bad input) and the async hook always exits 0, reporting problems on stderr only
+- Changed: every subprocess the statusline spawns is bounded by a timeout; a slow git can no longer block rendering
+- Changed: config save failures are shown inside the TUI instead of being written to stderr where bubbletea makes them invisible
+- Removed: the unused Kitty graphics experiment, including the embedded sprite PNGs, shrinking all three binaries
+- Internal: the config TUI split into focused files, shared helpers for atomic writes / bar clamping / text editing, a typed Claude payload struct, `make test` / `make lint` targets, and broad test coverage for config loading, migration, state lifecycle, and the settings.json installer
+
 ## 0.0.7
 
 - New **Style** screen in `ccpetline-config` that consolidates the look-and-feel choices: a single **Nerd Font** capability toggle gates the icon style (glyphs vs spelled-out text labels), the **Powerline** look, and the powerline separator. Options that require a Nerd Font are hidden entirely when it is off, so you can't pick something your terminal can't render

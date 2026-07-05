@@ -2,6 +2,7 @@ package pet
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -15,6 +16,8 @@ var DefaultLines = []string{
 // DefaultSeparator is the default token separator.
 const DefaultSeparator = " | "
 
+// DisplayMode selects whether the pet lines stand alone or wrap another
+// statusline command's output.
 type DisplayMode string
 
 const (
@@ -23,8 +26,10 @@ const (
 	ModeAppend     DisplayMode = "append"
 )
 
+// AllDisplayModes is the ordered list of selectable display modes.
 var AllDisplayModes = []DisplayMode{ModeStandalone, ModePrepend, ModeAppend}
 
+// BarStyle selects the characters the progress bars are drawn with.
 type BarStyle string
 
 const (
@@ -34,8 +39,10 @@ const (
 	BarDot     BarStyle = "dot"
 )
 
+// AllBarStyles is the ordered list of selectable bar styles.
 var AllBarStyles = []BarStyle{BarClassic, BarBlock, BarThin, BarDot}
 
+// BarStyleLabel returns a human-readable name for a bar style.
 func BarStyleLabel(s BarStyle) string {
 	switch s {
 	case BarBlock:
@@ -49,6 +56,7 @@ func BarStyleLabel(s BarStyle) string {
 	}
 }
 
+// DisplayModeLabel returns a human-readable name for a display mode.
 func DisplayModeLabel(m DisplayMode) string {
 	switch m {
 	case ModePrepend:
@@ -60,6 +68,7 @@ func DisplayModeLabel(m DisplayMode) string {
 	}
 }
 
+// Config is the user's persisted configuration in ~/.ccpetline/config.json.
 type Config struct {
 	Species      Species           `json:"species"`
 	ContextMode  ContextMode       `json:"context_mode"`
@@ -82,12 +91,31 @@ type Config struct {
 	PetOnTop   *bool `json:"pet_on_top,omitempty"`
 }
 
+// ConfigPath returns the config file path, or "" when no home directory can
+// be resolved.
 func ConfigPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""
 	}
 	return filepath.Join(home, ".ccpetline", "config.json")
+}
+
+// Bar width bounds. Out-of-range values reset to DefaultBarWidth on load.
+const (
+	MinBarWidth     = 20
+	MaxBarWidth     = 80
+	DefaultBarWidth = 50
+)
+
+// clampBarWidth normalizes a bar width, resetting out-of-range values to the
+// default. LoadConfig and LoadState both apply it, so render code can trust
+// the value.
+func clampBarWidth(w int) int {
+	if w < MinBarWidth || w > MaxBarWidth {
+		return DefaultBarWidth
+	}
+	return w
 }
 
 func barShowPetDefault() *bool {
@@ -105,11 +133,14 @@ func defaultConfig() *Config {
 		LineColors:   DefaultLineColors(DefaultLines),
 		BarStyle:     BarThin,
 		BarShowPet:   barShowPetDefault(),
-		BarWidth:     50,
+		BarWidth:     DefaultBarWidth,
 		PowerlineSep: SepArrow,
 	}
 }
 
+// LoadConfig reads and normalizes the user config, falling back to defaults
+// when the file is missing or malformed. Every enum field is validated here,
+// so downstream code can trust the values.
 func LoadConfig() *Config {
 	path := ConfigPath()
 	if path == "" {
@@ -121,17 +152,14 @@ func LoadConfig() *Config {
 	}
 	var c Config
 	if err := json.Unmarshal(data, &c); err != nil {
+		// Preserve the malformed file for manual recovery: the next save
+		// would otherwise permanently overwrite it with defaults.
+		_ = os.Rename(path, path+".bad")
 		return defaultConfig()
 	}
-	if c.Species == "" {
-		c.Species = SpeciesCat
-	}
-	if c.ContextMode == "" {
-		c.ContextMode = ContextModeCtx
-	}
-	if c.IconTheme != IconThemeNerd {
-		c.IconTheme = IconThemeText
-	}
+	c.Species = ParseSpecies(string(c.Species))
+	c.ContextMode = ParseContextMode(string(c.ContextMode))
+	c.IconTheme = ParseIconTheme(string(c.IconTheme))
 	// For configs written before nerd_font existed, infer the capability from
 	// usage: any config already using glyphs or the powerline look must have had
 	// a Nerd Font. An explicitly present nerd_font is authoritative, so only
@@ -165,9 +193,7 @@ func LoadConfig() *Config {
 	default:
 		c.PowerlineSep = SepArrow
 	}
-	if c.BarWidth < 20 || c.BarWidth > 80 {
-		c.BarWidth = 50
-	}
+	c.BarWidth = clampBarWidth(c.BarWidth)
 	migrateConfig(&c)
 	if len(c.LineColors) == 0 {
 		c.LineColors = DefaultLineColors(c.Lines)
@@ -185,7 +211,7 @@ func migrateConfig(c *Config) {
 		return
 	}
 
-	// No Lines set — derive from old fields.
+	// No Lines set - derive from old fields.
 	showSnacks := c.ShowSnacks == nil || *c.ShowSnacks
 	petOnTop := c.PetOnTop == nil || *c.PetOnTop
 
@@ -208,54 +234,30 @@ func migrateConfig(c *Config) {
 	c.PetOnTop = nil
 }
 
+// SaveConfig writes the config atomically and pushes the new values into all
+// active session states.
 func SaveConfig(c *Config) error {
 	path := ConfigPath()
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return err
+	if path == "" {
+		return fmt.Errorf("cannot resolve config path: no home directory")
 	}
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
+	if err := writeFileAtomic(path, data, 0o644); err != nil {
 		return err
 	}
 	updateActiveSessions(c)
 	return nil
 }
 
-// updateActiveSessions patches all /tmp/ccpetline-state-*.json files
-// with the new config values so running sessions pick up changes immediately.
+// updateActiveSessions patches all session state files with the new config
+// values so running sessions pick up changes immediately.
 func updateActiveSessions(c *Config) {
-	entries, err := os.ReadDir(stateDir)
-	if err != nil {
-		return
-	}
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || len(name) < 20 || name[:15] != "ccpetline-state" || name[len(name)-5:] != ".json" {
-			continue
-		}
-		path := filepath.Join(stateDir, name)
+	for _, path := range statePaths() {
 		state := LoadState(path)
-		state.Species = c.Species
-		state.ContextMode = c.ContextMode
-		state.IconTheme = c.IconTheme
-		state.Lines = c.Lines
-		state.LineColors = c.LineColors
-		state.DisplayMode = c.DisplayMode
-		state.WrapCommand = c.WrapCommand
-		state.BarStyle = c.BarStyle
-		if c.BarShowPet != nil {
-			state.BarShowPet = *c.BarShowPet
-		}
-		state.BarWidth = c.BarWidth
-		state.Powerline = c.Powerline
-		state.PowerlineSep = c.PowerlineSep
+		state.ApplyConfig(c)
 		_ = SaveState(path, state)
 	}
 }

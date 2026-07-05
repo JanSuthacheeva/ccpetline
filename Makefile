@@ -7,7 +7,16 @@ PLATFORMS = linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
 CMDS = hook statusline config
 BINS = ccpetline-hook ccpetline ccpetline-config
 
-.PHONY: build install clean release
+.PHONY: build install clean release test lint
+
+test:
+	go test ./...
+
+lint:
+	go vet ./...
+	@fmt=$$(gofmt -l .); if [ -n "$$fmt" ]; then \
+		echo "gofmt needed on:"; echo "$$fmt"; exit 1; \
+	fi
 
 build:
 	go build $(LDFLAGS) -o bin/ccpetline-hook ./cmd/hook

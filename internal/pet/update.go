@@ -51,19 +51,40 @@ func SelfUpdate(tag string) error {
 	}
 	installDir := filepath.Dir(exe)
 
-	// Remove old binaries.
-	for _, name := range []string{"ccpetline", "ccpetline-hook", "ccpetline-config"} {
-		p := filepath.Join(installDir, name)
-		if runtime.GOOS == "windows" {
-			p += ".exe"
-		}
-		_ = os.Remove(p)
+	// Extract to a temp dir first so a corrupt archive never leaves the
+	// user without binaries. Same filesystem as installDir so the final
+	// renames cannot fail with a cross-device error.
+	tmpDir, err := os.MkdirTemp(installDir, ".ccpetline-update-")
+	if err != nil {
+		return fmt.Errorf("creating temp dir: %w", err)
 	}
+	defer os.RemoveAll(tmpDir)
 
 	if runtime.GOOS == "windows" {
-		return extractZip(data, installDir)
+		err = extractZip(data, tmpDir)
+	} else {
+		err = extractTarGz(data, tmpDir)
 	}
-	return extractTarGz(data, installDir)
+	if err != nil {
+		return err
+	}
+
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		return fmt.Errorf("reading extracted files: %w", err)
+	}
+	if len(entries) == 0 {
+		return fmt.Errorf("archive contained no files")
+	}
+	for _, e := range entries {
+		dest := filepath.Join(installDir, e.Name())
+		// Windows cannot rename over an existing file.
+		_ = os.Remove(dest)
+		if err := os.Rename(filepath.Join(tmpDir, e.Name()), dest); err != nil {
+			return fmt.Errorf("installing %s: %w", e.Name(), err)
+		}
+	}
+	return nil
 }
 
 func extractTarGz(data []byte, dir string) error {

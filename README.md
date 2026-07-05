@@ -41,11 +41,11 @@ make install
 ## Features
 
 - **5 pets** -- cat, goose, dragon, dino, ocean creature
-- **Icon themes** -- spelled-out text labels (default) or crisp Nerd Font glyphs
+- **Style presets** -- one **Nerd Font** toggle drives the whole look: spelled-out text labels or crisp glyphs, and an optional Powerline segment style
 - **Highly customizable** -- bar style, width, layout, colors, line templates with tokens
 - **Standalone or composable** -- use as a full status line, or prepend/append to an existing one
 - **Reactive** -- pet mood and size change dynamically based on tool use and context window fill
-- **TUI configurator** -- interactive setup via `ccpetline-config`, no JSON editing needed
+- **TUI configurator** -- interactive setup via `ccpetline-config` with a first-run style wizard, no JSON editing needed
 - **Zero dependencies** -- single static binaries, no runtime requirements
 
 ## Emoji requirements
@@ -56,17 +56,25 @@ ccpetline renders pets using emoji and Unicode characters. Your terminal needs:
 - If emojis don't render correctly, install [Noto Color Emoji](https://fonts.google.com/noto/specimen/Noto+Color+Emoji)
 - For best results, use a [Nerd Font](https://www.nerdfonts.com/) which includes extra glyphs
 
-## Icon theme
+## Style
 
-By default, token labels are spelled out (`Model: Opus 4`, `Joy: 5`, `$0.42`). Switch to
-the **Nerd Font** theme in `ccpetline-config` (under **Icons**) to render them as monochrome
-glyphs instead (a microchip for the model, a folder for the directory, a heart for joy, etc.).
-The pet stays a colorful emoji in both themes.
+The **Style** screen in `ccpetline-config` sets your terminal's look in one place. The first
+time you run the configurator (no config yet) it opens automatically as a short wizard with a
+live preview; afterwards you can re-open it anytime from the **Style** menu item.
 
-The Nerd Font theme requires a [Nerd Font](https://www.nerdfonts.com/) installed in your
-terminal; if glyphs show as boxes, either install one or switch back to the text theme.
-Both themes are plain Unicode text, so they render correctly through Claude Code's status
-line (unlike terminal image protocols, which it does not support).
+A single **Nerd Font** toggle declares whether your terminal has a [Nerd Font](https://www.nerdfonts.com/)
+installed. When it's off, only text-safe options are shown. When it's on, three more choices
+appear:
+
+- **Icons** -- spelled-out text labels (`Model: Opus 4`, `Joy: 5`, `$0.42`) or monochrome Nerd
+  Font glyphs (a microchip for the model, a folder for the directory, a heart for joy, etc.).
+  The pet stays a colorful emoji either way.
+- **Powerline** -- the segment style described below.
+- **Separator** -- the powerline separator glyph (shown only while Powerline is on).
+
+Options that need a Nerd Font are hidden entirely without one, so you can't accidentally pick
+something that renders as boxes. Everything is plain Unicode text, so it renders correctly
+through Claude Code's status line (unlike terminal image protocols, which it does not support).
 
 Colors are configured separately, per segment, via the color picker in **Edit Lines** (press
 `f`). Out of the box the status line uses a default color scheme (blue directory, purple
@@ -75,10 +83,10 @@ taste.
 
 ### Powerline
 
-Enable **Powerline** in `ccpetline-config` (under **Bar Style**) to render each segment as a
+Enable **Powerline** on the **Style** screen to render each segment as a
 filled block joined by `` arrows. In this mode the per-segment colors become segment
 **backgrounds** and the text color auto-contrasts. Powerline needs a Nerd Font (every Nerd
-Font ships the separator glyphs).
+Font ships the separator glyphs), so the toggle only appears once **Nerd Font** is on.
 
 The separator glyph is configurable via the **Separator** row that appears below the
 Powerline toggle: Arrow ``, Round ``, Slant ``, Backslant ``, Flame ``,

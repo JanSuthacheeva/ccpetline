@@ -63,6 +63,7 @@ func DisplayModeLabel(m DisplayMode) string {
 type Config struct {
 	Species      Species           `json:"species"`
 	ContextMode  ContextMode       `json:"context_mode"`
+	NerdFont     bool              `json:"nerd_font,omitempty"`
 	IconTheme    IconTheme         `json:"icon_theme,omitempty"`
 	Separator    string            `json:"separator"`
 	Lines        []string          `json:"lines,omitempty"`
@@ -130,6 +131,23 @@ func LoadConfig() *Config {
 	}
 	if c.IconTheme != IconThemeNerd {
 		c.IconTheme = IconThemeText
+	}
+	// For configs written before nerd_font existed, infer the capability from
+	// usage: any config already using glyphs or the powerline look must have had
+	// a Nerd Font. An explicitly present nerd_font is authoritative, so only
+	// infer when the key is absent (detected via a nil pointer probe).
+	var probe struct {
+		NerdFont *bool `json:"nerd_font"`
+	}
+	_ = json.Unmarshal(data, &probe)
+	if probe.NerdFont == nil && (c.IconTheme == IconThemeNerd || c.Powerline) {
+		c.NerdFont = true
+	}
+	// Without a Nerd Font, glyph icons and the powerline look cannot render, so
+	// keep the stored config consistent with what the terminal can display.
+	if !c.NerdFont {
+		c.IconTheme = IconThemeText
+		c.Powerline = false
 	}
 	if c.Separator == "" {
 		c.Separator = DefaultSeparator

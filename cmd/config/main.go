@@ -43,7 +43,7 @@ const (
 	sectionWrapCommandEdit
 	sectionColorPicker
 	sectionBarStyle
-	sectionIconTheme
+	sectionStyle
 	sectionUpdate
 )
 
@@ -101,6 +101,7 @@ func (m model) menuItems() []menuItem {
 		items = append(items, menuItem{}) // separator
 	}
 	items = append(items,
+		menuItem{label: "Style", emoji: "\U0001F3A8", section: sectionStyle},
 		menuItem{label: "Display Mode", emoji: "\U0001F4FA", section: sectionDisplayMode},
 		menuItem{},
 		menuItem{label: "Edit Lines", emoji: "\u270f\ufe0f ", section: sectionLinesPicker},
@@ -108,7 +109,6 @@ func (m model) menuItems() []menuItem {
 		menuItem{label: "Separator", emoji: "\u2702\ufe0f ", section: sectionSeparator},
 		menuItem{},
 		menuItem{label: "Bar Style", emoji: "\U0001F4CA", section: sectionBarStyle},
-		menuItem{label: "Icons", emoji: "✨", section: sectionIconTheme},
 		menuItem{label: "Context Mode", emoji: "\U0001F4CA", section: sectionContextMode},
 		menuItem{label: "Install to Claude Code", emoji: "\U0001F527", section: sectionInstall},
 	)
@@ -205,7 +205,9 @@ type model struct {
 	current        pet.Species
 	currentCtxMode pet.ContextMode
 	iconTheme      pet.IconTheme
-	iconCursor     int
+	nerdFont       bool
+	styleCursor    int
+	firstRun       bool
 	separator      string
 
 	lines       [maxLines][]pet.Segment
@@ -274,14 +276,6 @@ func initialModel() model {
 			break
 		}
 	}
-	iconCursor := 0
-	for i, t := range pet.AllIconThemes {
-		if t == cfg.IconTheme {
-			iconCursor = i
-			break
-		}
-	}
-
 	var lines [maxLines][]pet.Segment
 	var lineColors [maxLines][]uint8
 	for i, tmpl := range cfg.Lines {
@@ -326,16 +320,28 @@ func initialModel() model {
 		barWidth = 50
 	}
 
+	// First run when no config file exists yet: open the Style wizard so the
+	// user declares terminal capabilities before seeing the full menu.
+	section := sectionMenu
+	firstRun := false
+	if path := pet.ConfigPath(); path != "" {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			section = sectionStyle
+			firstRun = true
+		}
+	}
+
 	return model{
-		section:        sectionMenu,
+		section:        section,
+		firstRun:       firstRun,
 		options:        opts,
 		ctxOptions:     ctxOpts,
 		cursor:         cursor,
 		ctxCursor:      ctxCursor,
-		iconCursor:     iconCursor,
 		current:        cfg.Species,
 		currentCtxMode: cfg.ContextMode,
 		iconTheme:      cfg.IconTheme,
+		nerdFont:       cfg.NerdFont,
 		separator:      cfg.Separator,
 		lines:          lines,
 		lineColors:     lineColors,
@@ -417,8 +423,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateColorPicker(msg)
 		case sectionBarStyle:
 			return m.updateBarStyle(msg)
-		case sectionIconTheme:
-			return m.updateIconTheme(msg)
+		case sectionStyle:
+			return m.updateStyle(msg)
 		case sectionUpdate:
 			return m.updateUpdateResult(msg)
 		}
@@ -739,23 +745,88 @@ func (m model) updateSpecies(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) updateIconTheme(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	themes := pet.AllIconThemes
+// Style screen row indices. Rows are laid out top-to-bottom in this fixed
+// order; Icons/Powerline exist only when Nerd Font is on, and Separator only
+// when Powerline is also on, so a visible cursor index maps directly to its
+// constant.
+const (
+	styleRowNerdFont = iota
+	styleRowIcons
+	styleRowPowerline
+	styleRowSeparator
+)
+
+// styleRowCount returns how many rows are currently visible on the Style
+// screen, which shrinks as capabilities are turned off.
+func (m model) styleRowCount() int {
+	if !m.nerdFont {
+		return 1
+	}
+	if m.powerline {
+		return 4
+	}
+	return 3
+}
+
+func (m *model) clampStyleCursor() {
+	if rows := m.styleRowCount(); m.styleCursor >= rows {
+		m.styleCursor = rows - 1
+	}
+}
+
+// styleAdjust toggles or cycles the focused Style row, then persists.
+func (m *model) styleAdjust(delta int) {
+	switch m.styleCursor {
+	case styleRowNerdFont:
+		m.nerdFont = !m.nerdFont
+		if m.nerdFont {
+			// Default to glyphs when the capability is first enabled.
+			m.iconTheme = pet.IconThemeNerd
+		} else {
+			m.iconTheme = pet.IconThemeText
+			m.powerline = false
+		}
+		m.clampStyleCursor()
+	case styleRowIcons:
+		if m.iconTheme == pet.IconThemeNerd {
+			m.iconTheme = pet.IconThemeText
+		} else {
+			m.iconTheme = pet.IconThemeNerd
+		}
+	case styleRowPowerline:
+		m.powerline = !m.powerline
+		m.clampStyleCursor()
+	case styleRowSeparator:
+		m.powerlineSep = cyclePowerlineSep(m.powerlineSep, delta)
+	}
+	m.save()
+}
+
+func (m model) updateStyle(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	rows := m.styleRowCount()
 	switch msg.String() {
 	case "esc":
-		m.section = sectionMenu
-	case "up", "k":
-		if m.iconCursor > 0 {
-			m.iconCursor--
-		}
-	case "down", "j":
-		if m.iconCursor < len(themes)-1 {
-			m.iconCursor++
+		// During the first-run wizard there is no menu to return to; enter
+		// completes setup instead.
+		if !m.firstRun {
+			m.section = sectionMenu
 		}
 	case "enter":
-		m.iconTheme = themes[m.iconCursor]
 		m.save()
+		m.firstRun = false
 		m.section = sectionMenu
+	case "up", "k":
+		if m.styleCursor > 0 {
+			m.styleCursor--
+		}
+	case "down", "j":
+		if m.styleCursor < rows-1 {
+			m.styleCursor++
+		}
+	case "left", "h":
+		m.styleAdjust(-1)
+	case "right", "l", " ":
+		m.styleAdjust(1)
 	}
 	return m, nil
 }
@@ -1085,12 +1156,10 @@ func (m model) updateColorPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// barStyleRows: 0..len(AllBarStyles)-1 = styles, then pet toggle, width,
-// powerline, powerline separator (only reachable while powerline is on)
+// barStyleRows: 0..len(AllBarStyles)-1 = styles, then pet toggle and width.
+// The Nerd Font / Powerline choices live on the Style screen.
 const barRowPetToggle = 4 // len(AllBarStyles)
 const barRowWidth = 5
-const barRowPowerline = 6
-const barRowPowerlineSep = 7
 
 // cyclePowerlineSep returns the separator style delta steps away from cur in
 // AllPowerlineSepStyles, wrapping around.
@@ -1108,10 +1177,7 @@ func cyclePowerlineSep(cur pet.PowerlineSepStyle, delta int) pet.PowerlineSepSty
 }
 
 func (m model) updateBarStyle(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	maxRow := barRowPowerline
-	if m.powerline {
-		maxRow = barRowPowerlineSep
-	}
+	maxRow := barRowWidth
 	switch msg.String() {
 	case "esc":
 		m.section = sectionMenu
@@ -1130,27 +1196,15 @@ func (m model) updateBarStyle(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else if m.barStyleCursor == barRowPetToggle {
 			m.barShowPet = !m.barShowPet
 			m.save()
-		} else if m.barStyleCursor == barRowPowerline {
-			m.powerline = !m.powerline
-			m.save()
-		} else if m.barStyleCursor == barRowPowerlineSep {
-			m.powerlineSep = cyclePowerlineSep(m.powerlineSep, 1)
-			m.save()
 		}
 	case "left", "h":
 		if m.barStyleCursor == barRowWidth && m.barWidth > 20 {
 			m.barWidth--
 			m.save()
-		} else if m.barStyleCursor == barRowPowerlineSep {
-			m.powerlineSep = cyclePowerlineSep(m.powerlineSep, -1)
-			m.save()
 		}
 	case "right", "l":
 		if m.barStyleCursor == barRowWidth && m.barWidth < 80 {
 			m.barWidth++
-			m.save()
-		} else if m.barStyleCursor == barRowPowerlineSep {
-			m.powerlineSep = cyclePowerlineSep(m.powerlineSep, 1)
 			m.save()
 		}
 	case "-":
@@ -1198,23 +1252,6 @@ func (m model) viewBarStyle(b *strings.Builder) {
 	widthText := fmt.Sprintf("Bar width %s", valueStyle.Render(fmt.Sprintf("%d", m.barWidth)))
 	row(b, m.barStyleCursor == barRowWidth, "\u2194\ufe0f", widthText)
 
-	// Powerline toggle row
-	plVal := "off"
-	if m.powerline {
-		plVal = "on"
-	}
-	plText := fmt.Sprintf("Powerline (segment backgrounds) %s", valueStyle.Render(plVal))
-	row(b, m.barStyleCursor == barRowPowerline, "\U0001F3A8", plText)
-	if m.powerline {
-		b.WriteString(hintStyle.Render("      colors become segment backgrounds; needs a Nerd Font"))
-		b.WriteString("\n")
-
-		// Powerline separator row (only shown while powerline is on).
-		sepText := fmt.Sprintf("Separator %s  %s",
-			valueStyle.Render(pet.PowerlineSepLabel(m.powerlineSep)),
-			dimStyle.Render(powerlineSepPreview(m.powerlineSep)))
-		row(b, m.barStyleCursor == barRowPowerlineSep, "➤", sepText)
-	}
 }
 
 // powerlineSepPreview renders two small colored blocks joined by the given
@@ -1270,11 +1307,20 @@ func (m *model) save() {
 			break
 		}
 	}
+	// Without a Nerd Font, glyph icons and the powerline look cannot render;
+	// keep the persisted config consistent with the declared capability.
+	iconTheme := m.iconTheme
+	powerline := m.powerline
+	if !m.nerdFont {
+		iconTheme = pet.IconThemeText
+		powerline = false
+	}
 	barShowPet := &m.barShowPet
 	cfg := &pet.Config{
 		Species:      m.current,
 		ContextMode:  m.currentCtxMode,
-		IconTheme:    m.iconTheme,
+		NerdFont:     m.nerdFont,
+		IconTheme:    iconTheme,
 		Separator:    m.separator,
 		Lines:        lines,
 		LineColors:   lc,
@@ -1283,7 +1329,7 @@ func (m *model) save() {
 		BarStyle:     m.barStyle,
 		BarShowPet:   barShowPet,
 		BarWidth:     m.barWidth,
-		Powerline:    m.powerline,
+		Powerline:    powerline,
 		PowerlineSep: m.powerlineSep,
 	}
 	if err := pet.SaveConfig(cfg); err != nil {
@@ -1323,8 +1369,8 @@ func (m model) View() string {
 		m.viewColorPicker(&b)
 	case sectionBarStyle:
 		m.viewBarStyle(&b)
-	case sectionIconTheme:
-		m.viewIconTheme(&b)
+	case sectionStyle:
+		m.viewStyle(&b)
 	case sectionUpdate:
 		m.viewUpdate(&b)
 	}
@@ -1395,8 +1441,8 @@ func (m model) viewMenu(b *strings.Builder) {
 			detail = fmt.Sprintf("%q", strings.TrimSpace(m.separator))
 		case sectionBarStyle:
 			detail = pet.BarStyleLabel(m.barStyle)
-		case sectionIconTheme:
-			detail = pet.IconThemeLabel(m.iconTheme)
+		case sectionStyle:
+			detail = m.styleSummary()
 		case sectionDisplayMode:
 			detail = pet.DisplayModeLabel(m.displayMode)
 		}
@@ -1436,30 +1482,87 @@ func (m model) viewSpecies(b *strings.Builder) {
 	}
 }
 
-func (m model) viewIconTheme(b *strings.Builder) {
-	header(b, "✨", "Icons")
-	nav(b, "esc back · enter select")
+// styleSummary is the one-line description shown next to the Style menu item.
+func (m model) styleSummary() string {
+	if !m.nerdFont {
+		return "Text"
+	}
+	icons := "glyphs"
+	if m.iconTheme == pet.IconThemeText {
+		icons = "text"
+	}
+	s := "Nerd Font · " + icons
+	if m.powerline {
+		s += " · Powerline " + pet.PowerlineSepLabel(m.powerlineSep)
+	}
+	return s
+}
+
+// stylePreviewTmpl is the sample line rendered in the Style screen preview box.
+const stylePreviewTmpl = "{cwd} | {branch} | {model} | {pet} {mood}"
+
+func (m model) viewStyle(b *strings.Builder) {
+	// Preview box reflecting the current icon theme and powerline look.
+	sample := pet.SampleSegmentData(m.current, pet.SizeNormal, m.barStyle, m.barShowPet, m.barWidth, m.iconTheme)
+	var preview string
+	if m.powerline {
+		segs := pet.TemplateToSegments(stylePreviewTmpl)
+		colors := pet.DefaultLineColors([]string{stylePreviewTmpl})[0]
+		preview = pet.RenderPowerlineLine(segs, colors, sample, m.powerlineSep)
+	} else {
+		preview = pet.RenderTemplate(stylePreviewTmpl, sample)
+	}
+	b.WriteString("\n")
+	b.WriteString(boxStyle.Render("\U0001F441  Preview\n  " + preview))
 	b.WriteString("\n")
 
-	descs := map[pet.IconTheme]string{
-		pet.IconThemeText: "plain text labels — works in any font",
-		pet.IconThemeNerd: "Nerd Font glyphs — requires a Nerd Font",
+	if m.firstRun {
+		header(b, "\U0001F3A8", "Welcome to ccpetline")
+		nav(b, "let's set up how your status line looks")
+		nav(b, "↑↓ move · ←→ change · enter done")
+	} else {
+		header(b, "\U0001F3A8", "Style")
+		nav(b, "esc back · ↑↓ move · ←→ change")
 	}
-	previewTmpl := "{cwd} | {branch} | {model} | {pet} {mood} | {joy}"
-	for i, t := range pet.AllIconThemes {
-		check := " "
-		if t == m.iconTheme {
-			check = checkStyle.Render("✓")
+	b.WriteString("\n")
+
+	onOff := func(v bool) string {
+		if v {
+			return "on"
 		}
-		text := fmt.Sprintf("%s %s — %s", check, pet.IconThemeLabel(t), descs[t])
-		row(b, i == m.iconCursor, "✨", text)
-		sample := pet.SampleSegmentData(m.current, pet.SizeNormal, m.barStyle, m.barShowPet, m.barWidth, t)
-		preview := pet.RenderTemplate(previewTmpl, sample)
-		b.WriteString(fmt.Sprintf("        %s\n", dimStyle.Render(preview)))
+		return "off"
 	}
 
-	b.WriteString("\n")
-	nav(b, "if glyphs show as boxes, install a Nerd Font: nerdfonts.com")
+	// Nerd Font capability row (always shown).
+	row(b, m.styleCursor == styleRowNerdFont, "✨",
+		fmt.Sprintf("Nerd Font %s", valueStyle.Render(onOff(m.nerdFont))))
+	if !m.nerdFont {
+		b.WriteString(hintStyle.Render("      enables glyph icons and the Powerline look"))
+		b.WriteString("\n")
+		b.WriteString(hintStyle.Render("      no glyphs? install one at nerdfonts.com"))
+		b.WriteString("\n")
+		return
+	}
+
+	// Icon style row.
+	iconVal := "Nerd glyphs"
+	if m.iconTheme == pet.IconThemeText {
+		iconVal = "Text labels"
+	}
+	row(b, m.styleCursor == styleRowIcons, "\U0001F524",
+		fmt.Sprintf("Icons %s", valueStyle.Render(iconVal)))
+
+	// Powerline toggle row.
+	row(b, m.styleCursor == styleRowPowerline, "▓",
+		fmt.Sprintf("Powerline (segment backgrounds) %s", valueStyle.Render(onOff(m.powerline))))
+
+	// Separator glyph row (only while powerline is on).
+	if m.powerline {
+		sepText := fmt.Sprintf("Separator %s  %s",
+			valueStyle.Render(pet.PowerlineSepLabel(m.powerlineSep)),
+			dimStyle.Render(powerlineSepPreview(m.powerlineSep)))
+		row(b, m.styleCursor == styleRowSeparator, "➤", sepText)
+	}
 }
 
 func (m model) viewContextMode(b *strings.Builder) {

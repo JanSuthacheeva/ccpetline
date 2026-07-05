@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.7
+
+- New **Style** screen in `ccpetline-config` that consolidates the look-and-feel choices: a single **Nerd Font** capability toggle gates the icon style (glyphs vs spelled-out text labels), the **Powerline** look, and the powerline separator. Options that require a Nerd Font are hidden entirely when it is off, so you can't pick something your terminal can't render
+- First-run wizard: launching `ccpetline-config` with no config yet opens the Style screen with a live preview so you set up your look before seeing the full menu; re-run it anytime from the **Style** menu item
+- Moved the **Icons** setting and the **Powerline** / **Separator** toggles (previously under Bar Style) onto the new Style screen; Bar Style now covers just the bar glyphs, pet-in-bar, and width
+- New `nerd_font` config field records the capability; configs already using glyphs or the powerline look are recognized as Nerd Font capable so the wizard is skipped, and an explicit `nerd_font: false` coerces the icon theme to text and disables powerline
+
 ## 0.0.6
 
 - New **Icons** setting in `ccpetline-config`: choose between the `text` theme (spelled-out labels, the default) and the `nerd` theme (monochrome Nerd Font glyphs)

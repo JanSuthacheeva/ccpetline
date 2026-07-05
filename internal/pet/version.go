@@ -43,10 +43,12 @@ func CheckLatestRelease() (string, error) {
 }
 
 // compareSemver compares two semver strings (without leading "v").
-// Returns 1 if a > b, -1 if a < b, 0 if equal.
+// Returns 1 if a > b, -1 if a < b, 0 if equal. Pre-release suffixes
+// ("0.0.8-rc1", "0.0.8+build") are stripped before comparing: Atoi would
+// otherwise silently parse them as 0 and misorder against plain releases.
 func compareSemver(a, b string) int {
-	pa := strings.Split(a, ".")
-	pb := strings.Split(b, ".")
+	pa := strings.Split(stripPreRelease(a), ".")
+	pb := strings.Split(stripPreRelease(b), ".")
 	for i := 0; i < 3; i++ {
 		va, vb := 0, 0
 		if i < len(pa) {
@@ -63,4 +65,12 @@ func compareSemver(a, b string) int {
 		}
 	}
 	return 0
+}
+
+// stripPreRelease drops the pre-release/build suffix from a semver string.
+func stripPreRelease(v string) string {
+	if i := strings.IndexAny(v, "-+"); i >= 0 {
+		return v[:i]
+	}
+	return v
 }

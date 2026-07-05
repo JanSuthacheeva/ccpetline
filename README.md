@@ -38,6 +38,14 @@ cd ccpetline
 make install
 ```
 
+### Development
+
+```bash
+make build   # build the three binaries into bin/
+make test    # run the test suite
+make lint    # go vet + gofmt check
+```
+
 ## Features
 
 - **5 pets** -- cat, goose, dragon, dino, ocean creature
@@ -96,11 +104,15 @@ Pixels `` or None for a straight edge with no glyph between blocks.
 
 ```
 Claude Code
-  |-- PostToolUse hook -----> ccpetline-hook -----> /tmp state file
-  |-- SessionStart hook ----> ccpetline-hook ----/
+  |-- PostToolUse hook -----> ccpetline-hook -----> per-session state file
+  |-- SessionStart hook ----> ccpetline-hook ----/   (in the OS temp dir)
   |-- SessionEnd hook ------> ccpetline-hook ---/
   |-- Statusline -----------> ccpetline -> (reads state, renders status line)
 ```
+
+State files are written atomically to the OS temp directory (`/tmp` on Linux,
+the user temp dir on macOS and Windows), one per Claude Code session. Stale
+files are cleaned up automatically after two weeks.
 
 Three binaries:
 
@@ -118,7 +130,8 @@ Three binaries:
 | Context update | Statusline | Updates fatness (primary size driver) |
 | Wake | SessionStart hook | Pet wakes up |
 | Sleep | SessionEnd hook | Pet goes to sleep |
-| Idle | No events for 10s | Gets bored, wanders |
+| Idle | No events for a few seconds | Gets bored, naps, grooms, wanders |
+| Long idle | No events for a minute | Falls asleep |
 
 ### Size stages (driven by context window %)
 
@@ -168,6 +181,10 @@ echo '{}' | ./bin/ccpetline
 ## Configuration
 
 Run `ccpetline-config` to open the TUI configurator. Config is stored in `~/.ccpetline/config.json`.
+
+Invalid values (unknown species, bar style out of range, and so on) are normalized to
+defaults on load. If the file is ever malformed, it is preserved as `config.json.bad`
+for manual recovery and defaults are used instead of silently overwriting it.
 
 ## License
 

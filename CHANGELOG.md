@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.8
 
 - Fixed: `{changes}` no longer renders a fake `+0/-0` outside git repositories; the segment is simply omitted
 - Fixed: state files now use the OS temp directory instead of a hardcoded `/tmp`, so hooks and the statusline work on Windows
